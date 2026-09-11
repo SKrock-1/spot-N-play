@@ -4,16 +4,26 @@ import { ArrowLeft, MapPin, Waves } from 'lucide-react';
 import API from '../api/axios';
 import Navbar from '../components/Navbar';
 import PoolSlotManager from '../components/PoolSlotManager';
+import { useAuth } from '../context/AuthContext';
 
-// Admin gets exactly the same management surface a pool owner has —
-// PoolSlotManager itself doesn't know or care who's driving it, because
-// the backend authorizes "owner OR admin" identically on every request.
-// This page just adds the venue header + a link back to Admin Panel.
+// Shared pool management surface for admins AND the venue's own owner
+// (route /pool/manage/:id) — PoolSlotManager itself doesn't know or care
+// who's driving it, because the backend authorizes "owner OR admin"
+// identically on every request. This page just adds the venue header,
+// a role-aware back link, and an ownership guard so a pool owner who
+// types in another venue's id gets a friendly denial (the API would
+// 403 them anyway).
 const AdminPoolManage = () => {
+  const { user } = useAuth();
   const [ground, setGround] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const { id } = useParams();
+
+  const ownerId = ground?.owner?._id || ground?.owner;
+  const isOwner = ownerId && user && String(ownerId) === String(user._id);
+  const isAdmin = user?.role === 'admin';
+  const canManage = isAdmin || isOwner;
 
   const showMessage = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -37,15 +47,22 @@ const AdminPoolManage = () => {
     <div className="min-h-screen bg-[#fcfcfc] dark:bg-[#060606] text-gray-900 dark:text-white">
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <Link to="/admin" className="text-xs text-gray-500 hover:text-green-500 mb-4 inline-flex items-center gap-1.5"><ArrowLeft size={13} /> Back to Admin Panel</Link>
+        <Link to={isAdmin ? '/admin' : '/pool/dashboard'} className="text-xs text-gray-500 hover:text-green-500 mb-4 inline-flex items-center gap-1.5"><ArrowLeft size={13} /> {isAdmin ? 'Back to Admin Panel' : 'Back to Pool Dashboard'}</Link>
 
         {loading && <p className="text-gray-500 text-sm">Loading venue…</p>}
 
-        {!loading && ground && ground.venueType !== 'pool' && (
+        {!loading && ground && !canManage && (
+          <div className="rounded-2xl border border-red-400/20 bg-red-400/5 p-6 text-center">
+            <p className="text-red-400 font-semibold text-sm mb-1">Not your venue 🔒</p>
+            <p className="text-gray-500 text-xs">Only the venue owner or an admin can manage bookings and scan tickets here.</p>
+          </div>
+        )}
+
+        {!loading && ground && ground.venueType !== 'pool' && canManage && (
           <p className="text-red-400 text-sm">This venue isn't a pool venue.</p>
         )}
 
-        {!loading && ground && ground.venueType === 'pool' && (
+        {!loading && ground && ground.venueType === 'pool' && canManage && (
           <>
             <div className="mb-6">
               <h1 className="font-bebas text-4xl tracking-wide flex items-center gap-2"><Waves className="text-green-500" size={28} /> {ground.name}</h1>

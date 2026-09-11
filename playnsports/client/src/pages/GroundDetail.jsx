@@ -643,6 +643,14 @@ const GroundDetail = () => {
               <p className="text-green-400 text-xs uppercase tracking-[0.3em] mb-1">Ground Detail</p>
               <h1 className="font-bebas text-4xl md:text-5xl tracking-wide shimmer-text">{ground.name}</h1>
               <p className="text-gray-500 mt-1">📍 {ground.address}</p>
+              {ground.venueType === 'pool' && (user?.role === 'admin' || String(ground.owner?._id || ground.owner || '') === String(user?._id || '')) && user && (
+                <button
+                  onClick={() => navigate(user.role === 'admin' ? `/admin/pools/${ground._id}` : `/pool/manage/${ground._id}`)}
+                  className="mt-3 inline-flex items-center gap-2 bg-green-400 hover:bg-green-300 text-black text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                >
+                  ⚙️ Manage bookings & gate scanner →
+                </button>
+              )}
               {/* {ground.owner?._id && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
                   <span>Hosted by</span>

@@ -78,6 +78,7 @@ function App() {
         <Route path="/pool/dashboard" element={<ProtectedRoute role="pool_owner"><PoolOwnerDashboard /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminPanel /></ProtectedRoute>} />
         <Route path="/admin/pools/:id" element={<ProtectedRoute role="admin"><AdminPoolManage /></ProtectedRoute>} />
+        <Route path="/pool/manage/:id" element={<ProtectedRoute role={['pool_owner', 'admin']}><AdminPoolManage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/groups" element={<ProtectedRoute><GroupPage /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />

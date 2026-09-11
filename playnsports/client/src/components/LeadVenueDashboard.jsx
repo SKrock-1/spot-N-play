@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import API from '../api/axios';
 import Navbar from './Navbar';
 import MapLocationPicker from './MapLocationPicker';
@@ -200,6 +201,21 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
             </>
           )}
         </div>
+
+        {/* Quick action: full bookings board + gate scanner on one page */}
+        {venue && venueType === 'pool' && (
+          <Link
+            to={`/pool/manage/${venue._id}`}
+            className="flex items-center gap-3 mb-6 rounded-2xl border border-green-400/25 bg-green-400/8 hover:bg-green-400/15 transition-colors p-4"
+          >
+            <span className="w-10 h-10 rounded-xl bg-green-400 flex items-center justify-center text-black text-lg font-black flex-shrink-0">📋</span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-gray-900 dark:text-white">Bookings & Gate Scanner</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400">Live booking data, QR check-in, schedule & plans — all in one place</span>
+            </span>
+            <span className="ml-auto text-green-500 dark:text-green-400 font-bold flex-shrink-0">→</span>
+          </Link>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-5">
