@@ -10,10 +10,12 @@ import { splitAmount, sanitizeBookingForPlayer } from '../utils/bookingEngine.js
 import { generateTicketId } from '../utils/ticket.js';
 import { sendPoolBookingEmail } from '../utils/sendEmail.js';
 import { notifySlotBooked, notifyPoolBookingConfirmed } from '../services/notificationService.js';
+import { signPoolQr, verifyPoolQr } from '../utils/poolQr.js';
 import {
-  todayStr, isWithinBookingWindow, isSlotExpired, MAX_ADVANCE_DAYS, MAX_DAILY_HEADCOUNT,
+  todayStr, isWithinBookingWindow, MAX_ADVANCE_DAYS, MAX_DAILY_HEADCOUNT,
   getOrCreateConfig, effectiveBlocksForDate, findEffectiveBlock, claimPoolSlotCapacity, releasePoolSlotCapacity,
 } from '../utils/poolBookingEngine.js';
+import { getIO } from '../socket/io.js';
 
 const clampParty = (n) => Math.max(1, Math.min(Number(n) || 1, MAX_DAILY_HEADCOUNT));
 
@@ -74,14 +76,13 @@ const getPoolAvailability = asyncHandler(async (req, res) => {
           category: b.category,
           capacity: b.capacity,
           bookedCount: bookedMap[`${p._id}:${b.startTime}`] || 0,
-          expired: isSlotExpired(date, b.startTime),
         })),
     }));
 
   res.json({ date, maxAdvanceDays: MAX_ADVANCE_DAYS, pools });
 });
 
-// ── Plan types + fees (read-only, any authenticated user) ───────────────
+// ── Membership plans + fees (read-only, any authenticated user) ─────────
 
 const getPoolPlans = asyncHandler(async (req, res) => {
   const { ground, error } = await loadLiveBookablePool(req.params.groundId);
@@ -89,15 +90,8 @@ const getPoolPlans = asyncHandler(async (req, res) => {
 
   const config = await getOrCreateConfig(ground._id);
   res.json({
-    planTypes: config.planTypes
-      .filter((p) => p.isActive)
-      .map((p) => ({
-        _id: p._id,
-        name: p.name,
-        billingLabel: p.billingLabel,
-        categories: p.categories.filter((c) => c.isActive),
-      }))
-      .filter((p) => p.categories.length > 0), // a plan type with no active category isn't selectable
+    planTypes: (config.planTypes || []).filter((p) => p.isActive),
+    membershipPlans: (config.membershipPlans || []).filter((p) => p.isActive),
     registrationFee: config.registrationFee,
     coachingFee: config.coachingFee,
     alreadyRegistered: req.user.poolRegistrations?.some((id) => String(id) === String(ground._id)) || false,
@@ -110,24 +104,23 @@ const getPoolPlans = asyncHandler(async (req, res) => {
 // ── Checkout ─────────────────────────────────────────────────────────────
 
 // Re-derives everything server-side from the request's identifying fields
-// only (poolId/date/startTime/planTypeId/categoryId/partySize) — never
-// trusts a client-sent price. Shared by both createPoolOrder and
-// verifyPoolPayment so the amount charged can never drift between the two
-// steps.
+// only (poolId/date/startTime/planTypeId/categoryId/partySize) — never trusts
+// a client-sent price. Shared by both createPoolOrder and verifyPoolPayment
+// so the amount charged can never drift between the two steps.
 const resolveBookingContext = async (ground, req) => {
-  const { poolId, date, startTime, planTypeId, categoryId, includeRegistration, healthConfirmed } = req.body;
+  const { poolId, date, startTime, planTypeId, categoryId, membershipPlanId, includeRegistration, healthConfirmed } = req.body;
   const partySize = clampParty(req.body.partySize);
 
-  if (!poolId || !date || !startTime || !planTypeId || !categoryId) {
-    const err = new Error('poolId, date, startTime, planTypeId and categoryId are required');
-    err.status = 400; throw err;
-  }
-  if (!healthConfirmed) {
-    const err = new Error('Please confirm the health & eligibility declaration before booking');
+  if (!poolId || !date || !startTime || (!planTypeId && !membershipPlanId)) {
+    const err = new Error('poolId, date, startTime and plan/category are required');
     err.status = 400; throw err;
   }
   if (!isWithinBookingWindow(date)) {
     const err = new Error(`Bookings are only open for today through the next ${MAX_ADVANCE_DAYS} days`);
+    err.status = 400; throw err;
+  }
+  if (healthConfirmed !== true && healthConfirmed !== 'true') {
+    const err = new Error('Please confirm the health & safety declaration to continue');
     err.status = 400; throw err;
   }
 
@@ -138,18 +131,25 @@ const resolveBookingContext = async (ground, req) => {
   const block = findEffectiveBlock(pool, date, startTime);
   if (!block) { const err = new Error('This slot is not open for booking'); err.status = 400; throw err; }
 
-  if (isSlotExpired(date, startTime)) {
-    const err = new Error('This slot has already started and can no longer be booked');
-    err.status = 400; throw err;
+  // New plan-type/category pricing (planTypes own their categories). Legacy
+  // membershipPlanId is still accepted for older clients, if present.
+  let planName, planLabel, unitPrice;
+  if (planTypeId) {
+    if (!categoryId) { const err = new Error('Please pick a membership category'); err.status = 400; throw err; }
+    const planType = (config.planTypes || []).find((p) => String(p._id) === String(planTypeId));
+    if (!planType || !planType.isActive) { const err = new Error('Please pick a valid plan'); err.status = 400; throw err; }
+    const category = (planType.categories || []).find((c) => String(c._id) === String(categoryId));
+    if (!category || category.isActive === false) { const err = new Error('Please pick a valid membership category'); err.status = 400; throw err; }
+    planName = `${planType.name} — ${category.name}`;
+    planLabel = planType.billingLabel || 'per session';
+    unitPrice = Number(category.price) || 0;
+  } else {
+    const plan = (config.membershipPlans || []).find((p) => String(p._id) === String(membershipPlanId));
+    if (!plan || !plan.isActive) { const err = new Error('Please pick a valid membership plan'); err.status = 400; throw err; }
+    planName = `${plan.name} (${plan.billingLabel})`;
+    planLabel = plan.billingLabel;
+    unitPrice = Number(plan.price) || 0;
   }
-
-  const planType = config.planTypes.id(planTypeId);
-  if (!planType || !planType.isActive) { const err = new Error('Please pick a valid plan'); err.status = 400; throw err; }
-  const category = planType.categories.id(categoryId);
-  // A category only ever belongs to the plan type it was created under, so
-  // this single lookup is also what keeps an invalid plan/category pairing
-  // from ever reaching the price calculation below.
-  if (!category || !category.isActive) { const err = new Error('Please pick a valid category'); err.status = 400; throw err; }
 
   const alreadyRegistered = req.user.poolRegistrations?.some((id) => String(id) === String(ground._id));
   const applyRegistration = !!includeRegistration && !alreadyRegistered && config.registrationFee > 0;
@@ -160,12 +160,13 @@ const resolveBookingContext = async (ground, req) => {
     err.status = 400; throw err;
   }
 
-  const totalAmount = category.price * partySize + (applyRegistration ? config.registrationFee : 0);
+  const totalAmount = unitPrice * partySize + (applyRegistration ? config.registrationFee : 0);
   if (totalAmount <= 0) { const err = new Error('Invalid amount for this plan — please contact the venue'); err.status = 400; throw err; }
 
   const priceInfo = splitAmount(ground, totalAmount, 1); // pool = full payment upfront, no advance/final split
 
-  return { config, pool, block, planType, category, partySize, applyRegistration, priceInfo, date, startTime };
+  const plan = { name: planName, billingLabel: planLabel };
+  return { config, pool, block, plan, partySize, applyRegistration, priceInfo, date, startTime };
 };
 
 const createPoolOrder = asyncHandler(async (req, res) => {
@@ -198,8 +199,7 @@ const createPoolOrder = asyncHandler(async (req, res) => {
     ground: { name: ground.name, address: ground.address },
     pool: { name: ctx.pool.name },
     slot: { date: ctx.date, startTime: ctx.startTime, endTime: ctx.block.endTime, category: ctx.block.category },
-    planType: { name: ctx.planType.name, billingLabel: ctx.planType.billingLabel },
-    category: { name: ctx.category.name, price: ctx.category.price },
+    plan: { name: ctx.plan.name, billingLabel: ctx.plan.billingLabel },
     partySize: ctx.partySize,
     includesRegistration: ctx.applyRegistration,
     // Deliberately no commissionPercent/platformCommission/ownerPayout —
@@ -258,11 +258,8 @@ const verifyPoolPayment = asyncHandler(async (req, res) => {
     poolId: ctx.pool._id,
     poolName: ctx.pool.name,
     slotCategory: ctx.block.category,
-    planTypeName: ctx.planType.name,
-    categoryName: ctx.category.name,
-    billingLabel: ctx.planType.billingLabel,
+    membershipPlanName: `${ctx.plan.name} (${ctx.plan.billingLabel})`,
     includedRegistrationFee: ctx.applyRegistration,
-    healthConfirmed: true,
     medicalCertificateUrl: certUrl,
     ticketId,
     partySize: ctx.partySize,
@@ -309,9 +306,125 @@ const verifyPoolPayment = asyncHandler(async (req, res) => {
   notifySlotBooked({ ownerId: ground.owner, actorId: req.user._id, groundId: ground._id, groundName: ground.name, date: ctx.date, startTime: ctx.startTime, endTime: ctx.block.endTime });
 
   res.json({
-    message: 'Payment successful — your pool session is booked. Your ticket has been emailed to you.',
+    message: 'Payment successful — your pool session is booked 🎉 Your ticket has been emailed to you.',
     booking: sanitizeBookingForPlayer(booking),
     ticketId,
+  });
+});
+
+// ── Player: QR payloads for my active pool tickets (signed) ──────────────
+const getMyPoolQrs = asyncHandler(async (req, res) => {
+  const bookings = await Booking.find({ player: req.user._id, poolId: { $ne: null }, status: 'completed' })
+    .populate('ground', 'name')
+    .sort({ date: -1, startTime: -1 });
+  const now = Math.floor(Date.now() / 1000);
+  const data = bookings.map((b) => {
+    const exp = Math.floor(new Date(`${b.date}T${b.endTime}:00`).getTime() / 1000) + 30 * 60;
+    const isExpired = now > exp;
+    return {
+      _id: b._id,
+      ticketId: b.ticketId,
+      ground: b.ground,
+      poolName: b.poolName,
+      date: b.date,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      partySize: b.partySize,
+      slotCategory: b.slotCategory,
+      checkedIn: !!b.checkedIn,
+      checkedInAt: b.checkedInAt,
+      isExpired,
+      qrPayload: !b.checkedIn && !isExpired ? signPoolQr(String(b._id), exp) : null,
+    };
+  });
+  res.json(data);
+});
+
+// ── Owner/admin: live bookings board for one pool venue ─────────────────
+const getPoolOwnerBookings = asyncHandler(async (req, res) => {
+  const ground = await Ground.findById(req.params.groundId);
+  if (!ground || ground.venueType !== 'pool') { res.status(404); throw new Error('Pool venue not found'); }
+  const isOwner = String(ground.owner) === String(req.user._id);
+  if (!isOwner && req.user.role !== 'admin') { res.status(403); throw new Error('Not authorized'); }
+  const bookings = await Booking.find({ ground: ground._id, poolId: { $ne: null } })
+    .populate('player', 'name avatar phone email')
+    .populate('ground', 'name')
+    .sort({ date: 1, startTime: 1 });
+  res.json(bookings);
+});
+
+// ── Owner/admin: scan QR (or type ticket) → single-use check-in ─────────
+const checkinPoolBooking = asyncHandler(async (req, res) => {
+  const { qrPayload, ticketId } = req.body;
+  const ground = await Ground.findById(req.params.groundId);
+  if (!ground || ground.venueType !== 'pool') { res.status(404); throw new Error('Pool venue not found'); }
+  const isOwner = String(ground.owner) === String(req.user._id);
+  if (!isOwner && req.user.role !== 'admin') { res.status(403); throw new Error('Only the venue owner can check in'); }
+
+  let booking = null;
+  let checkinMethod = 'manual';
+
+  if (qrPayload) {
+    let bookingId;
+    try { bookingId = verifyPoolQr(qrPayload).bookingId; } catch (e) { res.status(400); throw new Error(e.message); }
+    booking = await Booking.findById(bookingId).populate('player', 'name avatar phone').populate('ground', 'name');
+    if (!booking) { res.status(404); throw new Error('Booking not found'); }
+    if (String(booking.ground._id || booking.ground) !== String(ground._id)) { res.status(400); throw new Error('QR not for this venue'); }
+    checkinMethod = 'qr';
+  } else if (ticketId) {
+    const tid = String(ticketId).trim().toUpperCase();
+    booking = await Booking.findOne({ ticketId: tid, ground: ground._id }).populate('player', 'name avatar phone').populate('ground', 'name');
+    if (!booking) { res.status(404); throw new Error('No booking found with that ticket ID for this venue'); }
+  } else {
+    res.status(400); throw new Error('qrPayload or ticketId required');
+  }
+
+  if (booking.status === 'cancelled' || booking.status === 'refunded') { res.status(400); throw new Error('Booking cancelled/refunded'); }
+  if (booking.status !== 'completed') { res.status(400); throw new Error(`Booking not check-in-able (status: ${booking.status})`); }
+  if (booking.checkedIn) {
+    res.status(400);
+    throw new Error(`Already checked in at ${new Date(booking.checkedInAt).toLocaleTimeString()} — single use, screenshot blocked`);
+  }
+  // date must be today (allow 30 min grace handled in expiry, but reject next-day reuse)
+  const today = new Date().toISOString().split('T')[0];
+  if (booking.date !== today) {
+    // allow owner to still check-in with warning? strict: reject
+    res.status(400); throw new Error(`Booking is for ${booking.date}, not today (${today})`);
+  }
+
+  booking.checkedIn = true;
+  booking.checkedInAt = new Date();
+  booking.checkinMethod = checkinMethod;
+  booking.checkedInBy = req.user._id;
+  await booking.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`venue_${ground._id}`).emit('pool:booking-updated', booking);
+    io.to(`user_${booking.player._id || booking.player}`).emit('pool:booking-updated', booking);
+  }
+
+  // reuse existing push helper pattern for player confirmation
+  try {
+    const { notify } = await import('../services/notificationService.js');
+    await notify({
+      recipient: booking.player._id || booking.player,
+      type: 'pool_booking_confirmed',
+      title: 'Checked in 🏊',
+      body: `${booking.ground?.name || ground.name} — ${booking.date} ${booking.startTime} checked in`,
+      link: '/player/dashboard',
+      data: { bookingId: booking._id },
+    });
+  } catch {}
+
+  res.json({
+    message: `${booking.player?.name || 'Guest'} checked in — ${booking.partySize} people`,
+    booking: {
+      _id: booking._id, ticketId: booking.ticketId, player: booking.player, poolName: booking.poolName,
+      date: booking.date, startTime: booking.startTime, endTime: booking.endTime,
+      partySize: booking.partySize, slotCategory: booking.slotCategory,
+      checkedIn: true, checkedInAt: booking.checkedInAt, checkinMethod,
+    },
   });
 });
 
@@ -348,4 +461,4 @@ const adminCancelPoolBooking = asyncHandler(async (req, res) => {
   res.json({ message: 'Pool booking cancelled & refunded ✅' });
 });
 
-export { getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, adminCancelPoolBooking };
+export { getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, adminCancelPoolBooking, getMyPoolQrs, getPoolOwnerBookings, checkinPoolBooking };

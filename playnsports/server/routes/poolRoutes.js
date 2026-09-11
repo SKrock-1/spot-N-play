@@ -11,6 +11,7 @@ import {
 } from '../controllers/poolConfigController.js';
 import {
   getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, adminCancelPoolBooking,
+  getMyPoolQrs, getPoolOwnerBookings, checkinPoolBooking,
 } from '../controllers/poolBookingController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authorizeRoles } from '../middleware/roleMiddleware.js';
@@ -41,22 +42,23 @@ router.post('/:groundId/pools/:poolId/override/:date/blocks', ...canManage, addO
 router.put('/:groundId/pools/:poolId/override/:date/blocks/:blockId', ...canManage, updateOverrideBlock);
 router.delete('/:groundId/pools/:poolId/override/:date/blocks/:blockId', ...canManage, removeOverrideBlock);
 
-// ── Owner/admin: plan types (HOW), categories within them (WHO) + fees ──
-router.post('/:groundId/plan-types', ...canManage, addPlanType);
-router.put('/:groundId/plan-types/:planTypeId', ...canManage, updatePlanType);
-router.delete('/:groundId/plan-types/:planTypeId', ...canManage, removePlanType);
-
-router.post('/:groundId/plan-types/:planTypeId/categories', ...canManage, addCategory);
-router.put('/:groundId/plan-types/:planTypeId/categories/:categoryId', ...canManage, updateCategory);
-router.delete('/:groundId/plan-types/:planTypeId/categories/:categoryId', ...canManage, removeCategory);
-
+// ── Owner/admin: membership plans + fees ────────────────────────────────
+router.post('/:groundId/plans', ...canManage, addPlanType);
+router.put('/:groundId/plans/:planId', ...canManage, updatePlanType);
+router.delete('/:groundId/plans/:planId', ...canManage, removePlanType);
+router.post('/:groundId/plans/:planId/categories', ...canManage, addCategory);
+router.put('/:groundId/plans/:planId/categories/:categoryId', ...canManage, updateCategory);
+router.delete('/:groundId/plans/:planId/categories/:categoryId', ...canManage, removeCategory);
 router.put('/:groundId/fees', ...canManage, updateVenueFees);
 
-// ── Player: browse + book ───────────────────────────────────────────────
+// ── Player: browse + book + my QR tickets ───────────────────────────────
+router.get('/my/qrs', protect, authorizeRoles('player'), getMyPoolQrs);
 router.get('/:groundId/availability', protect, getPoolAvailability);
 router.get('/:groundId/checkout-info', protect, getPoolPlans);
 router.post('/:groundId/order', ...canBook, createPoolOrder);
 router.post('/:groundId/verify', ...canBook, verifyPoolPayment);
+router.get('/:groundId/bookings', protect, authorizeRoles('pool_owner', 'admin'), getPoolOwnerBookings);
+router.post('/:groundId/bookings/checkin', protect, authorizeRoles('pool_owner', 'admin'), checkinPoolBooking);
 
 // ── Admin only: the "contact admin" cancellation/refund path ───────────
 router.patch('/:groundId/bookings/:bookingId/admin-cancel', protect, authorizeRoles('admin'), adminCancelPoolBooking);

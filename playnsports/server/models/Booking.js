@@ -29,16 +29,8 @@ const bookingSchema = new mongoose.Schema(
     poolId: { type: mongoose.Schema.Types.ObjectId, default: null }, // PoolConfig.pools[]._id
     poolName: { type: String, default: '' },
     slotCategory: { type: String, default: '' }, // 'general' | 'girls_only'
-    // Plan = HOW they're paying (e.g. "Monthly Membership"), Category = WHO
-    // they are within that plan (e.g. "LPU Hosteler"). Kept as separate
-    // fields so the owner dashboard and confirmation email can show them
-    // distinctly instead of one mashed-together string.
-    planTypeName: { type: String, default: '' },
-    categoryName: { type: String, default: '' },
-    billingLabel: { type: String, default: '' },
+    membershipPlanName: { type: String, default: '' },
     includedRegistrationFee: { type: Boolean, default: false },
-    // Player ticked the health/eligibility declaration before paying.
-    healthConfirmed: { type: Boolean, default: false },
     // Snapshotted at booking time — a cert uploaded/changed afterwards on
     // the user's profile shouldn't silently rewrite what the venue already
     // saw for this specific booking.
@@ -69,6 +61,11 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Payment',
     },
+    // ── QR check-in (pool) ────────────────────────────────────────────
+    checkedIn: { type: Boolean, default: false },
+    checkedInAt: { type: Date, default: null },
+    checkinMethod: { type: String, enum: ['qr', 'manual', ''], default: '' },
+    checkedInBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true }
 );

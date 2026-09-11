@@ -4,6 +4,7 @@ import {
   AlertTriangle, Upload, FileText, Ticket, MapPin, Users, X, Info, HeartPulse,
 } from 'lucide-react';
 import API from '../api/axios';
+import PoolQr from './PoolQr';
 
 const useLocalStyles = () => {
   useEffect(() => {
@@ -201,23 +202,38 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const [certUploading, setCertUploading] = useState(false);
   const [paying, setPaying] = useState(false);
   const [ticket, setTicket] = useState(null);
+  const [qrPayload, setQrPayload] = useState(null);
+  const [availError, setAvailError] = useState('');
+  const [checkoutError, setCheckoutError] = useState('');
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setAvailError('');
+    // Fetch availability and checkout-info independently — a failure in one
+    // must never blank out the other (a checkout-info 500 used to wipe the
+    // whole wizard into a misleading "no bookable pool" message).
     try {
-      const [avail, info] = await Promise.all([
-        API.get(`/pools/${ground._id}/availability`, { params: { date: selectedDate } }),
-        checkoutInfo ? Promise.resolve({ data: checkoutInfo }) : API.get(`/pools/${ground._id}/checkout-info`),
-      ]);
-      setAvailability(avail.data);
-      if (!checkoutInfo) setCheckoutInfo(info.data);
-      setActivePoolId((prev) => prev || avail.data.pools?.[0]?.poolId || null);
-      if (info.data?.medicalCertificateUrl && !certUrl) setCertUrl(info.data.medicalCertificateUrl);
+      const { data } = await API.get(`/pools/${ground._id}/availability`, { params: { date: selectedDate } });
+      setAvailability(data);
+      setActivePoolId((prev) => {
+        const stillThere = data.pools?.some((p) => p.poolId === prev);
+        return stillThere ? prev : (data.pools?.[0]?.poolId || null);
+      });
     } catch (err) {
+      setAvailError(err.response?.data?.message || 'Failed to load pool availability');
       showMessage?.(err.response?.data?.message || 'Failed to load pool availability', 'error');
-    } finally {
-      setLoading(false);
     }
+    if (!checkoutInfo) {
+      try {
+        const { data } = await API.get(`/pools/${ground._id}/checkout-info`);
+        setCheckoutInfo(data);
+        if (data?.medicalCertificateUrl && !certUrl) setCertUrl(data.medicalCertificateUrl);
+      } catch (err) {
+        setCheckoutError(err.response?.data?.message || 'Failed to load membership plans');
+        showMessage?.(err.response?.data?.message || 'Failed to load membership plans', 'error');
+      }
+    }
+    setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ground._id, selectedDate]);
 
@@ -326,19 +342,32 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
     setHealthConfirmed(false);
   };
 
+  useEffect(() => {
+    if (!ticket?._id) return;
+    API.get('/pools/my/qrs').then(({ data }) => {
+      const hit = data.find((r) => String(r._id) === String(ticket._id));
+      if (hit?.qrPayload) setQrPayload(hit.qrPayload);
+    }).catch(() => {});
+  }, [ticket]);
+
   if (ticket) {
     return (
-      <div className="pbp panel text-center py-14 px-6">
+      <div className="pbp panel text-center py-8 px-6">
         <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
           <Ticket className="text-green-500" size={26} />
         </div>
         <h3 className="font-bebas text-2xl tracking-wide mb-1">Booking Confirmed</h3>
         <p className="text-gray-500 text-sm mb-5">Your ticket has been emailed to you and is in your dashboard notifications.</p>
-        <div className="inline-block bg-green-500/8 border border-dashed border-green-500/40 rounded-xl px-7 py-3 mb-5">
-          <p className="text-[10px] text-green-600 uppercase tracking-widest font-semibold">Ticket ID</p>
-          <p className="text-xl font-bold tracking-widest">{ticket.ticketId}</p>
+        <div className="flex flex-col items-center gap-4 mb-5">
+          {qrPayload ? <PoolQr payload={qrPayload} ticketId={ticket.ticketId} /> : (
+            <div className="inline-block bg-green-500/8 border border-dashed border-green-500/40 rounded-xl px-7 py-3">
+              <p className="text-[10px] text-green-600 uppercase tracking-widest font-semibold">Ticket ID</p>
+              <p className="text-xl font-bold tracking-widest">{ticket.ticketId}</p>
+            </div>
+          )}
         </div>
         <p className="text-gray-500 text-xs">{ticket.poolName} · {ticket.date} · {fmtTime(ticket.startTime)}–{fmtTime(ticket.endTime)} · {ticket.partySize} {ticket.partySize === 1 ? 'person' : 'people'}</p>
+        <p className="text-[11px] text-gray-500 mt-2">One QR = one entry — screenshot sharing blocked after first scan</p>
         <button className="btn-secondary mt-6" onClick={resetWizard}>Book another slot</button>
       </div>
     );
@@ -391,7 +420,16 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
             </button>
             {showCalendar && <MiniCalendar selected={selectedDate} onSelect={setSelectedDate} />}
 
-            {!loading && !activePool && (
+            {!loading && availError && !activePool && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3.5 py-3 mt-1 mb-1">
+                <AlertTriangle size={15} className="text-red-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  Couldn't load pool availability: {availError} — please refresh and try again.
+                </p>
+              </div>
+            )}
+
+            {!loading && !availError && !activePool && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3 mt-1 mb-1">
                 <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -439,6 +477,14 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
         )}
 
         {/* Step 3: Plan Type — HOW they're paying */}
+        {step === 3 && chosenSlot && !checkoutInfo && (
+          <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3.5 py-3">
+            <AlertTriangle size={15} className="text-red-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-600 dark:text-red-400">
+              Couldn't load membership plans{checkoutError ? `: ${checkoutError}` : ''} — please go back and try again, or contact the venue.
+            </p>
+          </div>
+        )}
         {step === 3 && chosenSlot && checkoutInfo && (
           <div>
             <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">

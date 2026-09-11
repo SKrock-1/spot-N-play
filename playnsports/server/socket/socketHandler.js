@@ -36,6 +36,12 @@ const socketHandler = (io) => {
     // fetched app-wide and filtered client-side rather than per-user rooms.
     socket.join('live-requests');
 
+    // Per-venue rooms for pool check-in live updates — owner dashboard
+    // subscribes to venue_<groundId> to get instant booking-updated events.
+    socket.on('join_venue', (groundId) => {
+      if (groundId) socket.join(`venue_${groundId}`);
+    });
+
     console.log(`🟢 ${socket.user.name} connected (${socket.id})`);
 
     // Broadcast online status

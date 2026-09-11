@@ -8,10 +8,11 @@ import { useSocket } from '../context/SocketContext';
 import FindPlayersModal from '../components/FindPlayersModal';
 import LiveRequestCard from '../components/LiveRequestCard';
 import MyChallenges from '../components/challenge/MyChallenges';
+import PoolQr from '../components/PoolQr';
 
 const PlayerDashboard = () => {
   const { user } = useAuth();
-  const { activeRequests } = useSocket();
+  const { socket, activeRequests } = useSocket();
   const [availability, setAvailability] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -26,6 +27,7 @@ const PlayerDashboard = () => {
     skillLevel: 'beginner',
     bio: '',
   });
+  const [poolQrMap, setPoolQrMap] = useState({});
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -276,6 +278,15 @@ const PlayerDashboard = () => {
     fetchAll();
   }, []);
 
+  const fetchPoolQrs = async () => {
+    try {
+      const { data } = await API.get('/pools/my/qrs');
+      const m = {};
+      data.forEach((r) => { m[r._id] = r.qrPayload; });
+      setPoolQrMap(m);
+    } catch { setPoolQrMap({}); }
+  };
+
   const fetchAll = async () => {
     try {
       const [availRes, bookRes, payRes] = await Promise.all([
@@ -289,6 +300,7 @@ const PlayerDashboard = () => {
       dataStore.set('dashboard:player:availability', availRes.data);
       dataStore.set('dashboard:player:bookings', bookRes.data);
       dataStore.set('dashboard:player:payments', payRes.data);
+      fetchPoolQrs();
       if (availRes.data) {
         setForm({
           sport: availRes.data.sport || 'cricket',
@@ -304,6 +316,17 @@ const PlayerDashboard = () => {
     setMessageType(type);
     setTimeout(() => setMessage(''), 3000);
   };
+
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (b) => {
+      setBookings((prev) => prev.map((x) => String(x._id) === String(b._id) ? { ...x, ...b } : x));
+      if (b.checkedIn) showMessage(`Checked in for ${b.poolName || 'pool'} — ${b.date} ${b.startTime} ✅`);
+      fetchPoolQrs();
+    };
+    socket.on('pool:booking-updated', handler);
+    return () => socket.off('pool:booking-updated', handler);
+  }, [socket]);
 
   const handleJoinRequest = async (id) => {
     setJoiningRequestId(id);
@@ -645,6 +668,15 @@ const PlayerDashboard = () => {
                         <p className="text-gray-500 text-xs mt-0.5">📍 {booking.ground?.address}</p>
                         <p className="text-gray-600 dark:text-gray-400 text-sm mt-2">📅 {booking.date} · 🕐 {booking.startTime} — {booking.endTime}</p>
                         {booking.ticketId && <p className="text-gray-600 text-xs mt-1">Ticket {booking.ticketId} {booking.partySize > 1 ? `· ${booking.partySize} people` : ''}</p>}
+                        {booking.poolId && booking.status === 'completed' && (
+                          <div className="mt-3">
+                            {booking.checkedIn ? (
+                              <p className="text-green-400 text-xs font-semibold">✅ Checked in {booking.checkedInAt ? `at ${new Date(booking.checkedInAt).toLocaleTimeString()}` : ''} — one scan only</p>
+                            ) : (
+                              <PoolQr payload={poolQrMap[booking._id]} ticketId={booking.ticketId} checkedIn={!!booking.checkedIn} isExpired={false} />
+                            )}
+                          </div>
+                        )}
                       </div>
                       <span className={`status-badge ${badge.color}`}>{badge.label}</span>
                     </div>

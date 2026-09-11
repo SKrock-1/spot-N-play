@@ -1,6 +1,105 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CalendarDays, CreditCard, ClipboardList, Circle, CircleDot, UserRound, Waves, Ticket, FileText, Lock } from 'lucide-react';
+import { CalendarDays, CreditCard, ClipboardList, Circle, CircleDot, UserRound, Waves, Ticket, FileText, Lock, ScanLine, Search } from 'lucide-react';
 import API from '../api/axios';
+import { useSocket } from '../context/SocketContext';
+
+const ScannerBox = ({ groundId, onScanned, showMessage }) => {
+  const [manual, setManual] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+  const doCheckin = async (payload) => {
+    try {
+      const { data } = await API.post(`/pools/${groundId}/bookings/checkin`, payload);
+      setLastResult({ ok: true, msg: data.message, booking: data.booking });
+      showMessage?.(data.message, 'success');
+      onScanned?.();
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Check-in failed';
+      setLastResult({ ok: false, msg });
+      showMessage?.(msg, 'error');
+    }
+  };
+  useEffect(() => {
+    if (!scanning) return;
+    let html5Qr;
+    (async () => {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      html5Qr = new Html5Qrcode('pool-qr-reader');
+      try {
+        await html5Qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 },
+          (decoded) => { doCheckin({ qrPayload: decoded }); setScanning(false); html5Qr.stop().catch(()=>{}); },
+          () => {});
+      } catch { showMessage?.('Camera failed — use manual ticket entry', 'error'); setScanning(false); }
+    })();
+    return () => { try { html5Qr?.stop().catch(()=>{}); } catch {} };
+  }, [scanning]);
+  return (
+    <div className="mb-4 p-4 rounded-2xl border border-green-400/20 bg-green-400/5">
+      <p className="text-sm font-bold text-green-400 flex items-center gap-2"><ScanLine size={16} /> Gate Scanner — one scan = one entry</p>
+      <p className="text-[11px] text-gray-500 mb-3">Screenshot reuse blocked — second scan of same QR is rejected as “Already checked in”.</p>
+      {!scanning ? <button onClick={() => setScanning(true)} className="bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm">📷 Scan QR</button> : <button onClick={() => setScanning(false)} className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-4 py-2 rounded-xl text-sm">Stop</button>}
+      <div id="pool-qr-reader" className="mt-3 rounded-xl overflow-hidden" style={{ display: scanning ? 'block' : 'none' }}></div>
+      <div className="flex gap-2 mt-3">
+        <input value={manual} onChange={(e)=>setManual(e.target.value.toUpperCase())} placeholder="SPT-XXXXXXXX" className="input-field flex-1" style={{fontFamily:'monospace'}} />
+        <button onClick={() => manual.trim() && doCheckin({ ticketId: manual.trim() })} className="bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm">Check-in</button>
+      </div>
+      {lastResult && <p className={`text-xs mt-2 font-semibold ${lastResult.ok ? 'text-green-400' : 'text-red-400'}`}>{lastResult.msg}</p>}
+    </div>
+  );
+};
+
+const BookingsFilters = ({ bookings, bookingsLoading, fetchBookings }) => {
+  const [q, setQ] = useState('');
+  const [dateF, setDateF] = useState('');
+  const [statusF, setStatusF] = useState('');
+  const { socket } = useSocket();
+  const [liveBookings, setLiveBookings] = useState(bookings);
+  useEffect(()=> setLiveBookings(bookings), [bookings]);
+  useEffect(()=>{
+    if(!socket) return;
+    const h=(b)=> setLiveBookings(prev=> prev.map(x=> String(x._id)===String(b._id)? {...x, ...b}: x));
+    socket.on('pool:booking-updated', h);
+    return()=> socket.off('pool:booking-updated', h);
+  }, [socket]);
+  const filtered = (liveBookings||[]).filter(b=>{
+    if(dateF && b.date!==dateF) return false;
+    if(statusF==='checkedIn' && !b.checkedIn) return false;
+    if(statusF==='notCheckedIn' && b.checkedIn) return false;
+    if(q && !`${b.player?.name} ${b.ticketId} ${b.player?.phone}`.toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
+  const checkedCount = (liveBookings||[]).filter(b=>b.checkedIn).length;
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-1 text-xs text-gray-500"><Search size={12} /><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / ticket / phone" className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs outline-none" /></div>
+        <input type="date" value={dateF} onChange={e=>setDateF(e.target.value)} className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs" />
+        <select value={statusF} onChange={e=>setStatusF(e.target.value)} className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"><option value="">All states</option><option value="notCheckedIn">Booked</option><option value="checkedIn">Checked-in</option></select>
+        <span className="text-[11px] text-gray-500 ml-auto">{filtered.length} shown · {checkedCount} checked-in</span>
+      </div>
+      {bookingsLoading && <p className="text-gray-500 text-sm">Loading…</p>}
+      {!bookingsLoading && filtered.length===0 && <p className="text-gray-500 text-sm italic">No matching bookings.</p>}
+      {!bookingsLoading && filtered.length>0 && (
+        <div className="flex flex-col gap-2">
+          {filtered.map((b)=>(
+            <div key={b._id} className={`slot-row ${b.checkedIn?'!border-green-400/30 !bg-green-400/5': b.slotCategory==='girls_only'?'girls':'general'}`}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{b.player?.name || 'Player'} <span className="text-gray-500 font-normal">· {b.partySize} people</span> {b.checkedIn && <span className="ml-2 text-[10px] bg-green-400 text-black px-1.5 py-0.5 rounded-full font-bold">✓ Checked-in {b.checkedInAt? new Date(b.checkedInAt).toLocaleTimeString():''}</span>}</p>
+                <p className="text-xs text-gray-500">{b.poolName} · {b.date} {b.startTime}–{b.endTime} · {b.membershipPlanName}</p>
+                <p className="text-[11px] text-gray-500 flex items-center gap-1"><Ticket size={11} /> {b.ticketId} · {b.status} {b.checkedIn? `· via ${b.checkinMethod}`:''}</p>
+                {b.medicalCertificateUrl && <a href={b.medicalCertificateUrl} target="_blank" rel="noreferrer" className="text-[11px] text-green-500 underline flex items-center gap-1"><FileText size={11} /> View medical certificate</a>}
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-bold">₹{b.totalPrice}</p>
+                <p className="text-[10px] text-gray-500">your payout ₹{b.ownerPayout}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Self-contained styling — needs to render correctly both inside the pool
 // owner dashboard and inside the admin panel's manage-venue page.
@@ -62,6 +161,11 @@ const PoolSlotManager = ({ ground, onRefresh, showMessage }) => {
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [newPlanType, setNewPlanType] = useState({ name: '', billingLabel: 'per session' });
   const [newCategory, setNewCategory] = useState({}); // { [planTypeId]: { name, price } }
+
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (socket && ground?._id) socket.emit('join_venue', ground._id);
+  }, [socket, ground?._id]);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -439,29 +543,14 @@ const PoolSlotManager = ({ ground, onRefresh, showMessage }) => {
 
       {tab === 'bookings' && (
         <div className="glass-card">
-          <h4 className="font-bebas text-lg text-gray-900 dark:text-white tracking-wide mb-3">INCOMING BOOKINGS</h4>
-          {bookingsLoading && <p className="text-gray-500 text-sm">Loading…</p>}
-          {!bookingsLoading && bookings?.length === 0 && <p className="text-gray-500 text-sm italic">No pool bookings yet.</p>}
-          {!bookingsLoading && bookings?.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {bookings.map((b) => (
-                <div key={b._id} className={`slot-row ${b.slotCategory === 'girls_only' ? 'girls' : 'general'}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{b.player?.name || 'Player'} <span className="text-gray-500 font-normal">· {b.partySize} people</span></p>
-                    <p className="text-xs text-gray-500">{b.poolName} · {b.date} {b.startTime}–{b.endTime} · {b.planTypeName} — {b.categoryName}</p>
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1"><Ticket size={11} /> {b.ticketId} · {b.status}</p>
-                    {b.medicalCertificateUrl && (
-                      <a href={b.medicalCertificateUrl} target="_blank" rel="noreferrer" className="text-[11px] text-green-500 underline flex items-center gap-1"><FileText size={11} /> View medical certificate</a>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold">₹{b.totalPrice}</p>
-                    <p className="text-[10px] text-gray-500">your payout ₹{b.ownerPayout}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bebas text-lg text-gray-900 dark:text-white tracking-wide">INCOMING BOOKINGS</h4>
+            <button onClick={fetchBookings} className="text-xs text-gray-500 hover:text-green-400">↻ Refresh</button>
+          </div>
+          {/* Scanner */}
+          <ScannerBox groundId={ground._id} onScanned={fetchBookings} showMessage={showMessage} />
+          {/* Filters */}
+          <BookingsFilters bookings={bookings} bookingsLoading={bookingsLoading} fetchBookings={fetchBookings} />
         </div>
       )}
     </div>
