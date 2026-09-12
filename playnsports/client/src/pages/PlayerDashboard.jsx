@@ -282,7 +282,7 @@ const PlayerDashboard = () => {
     try {
       const { data } = await API.get('/pools/my/qrs');
       const m = {};
-      data.forEach((r) => { m[r._id] = r.qrPayload; });
+      data.forEach((r) => { m[r._id] = r; });
       setPoolQrMap(m);
     } catch { setPoolQrMap({}); }
   };
@@ -673,7 +673,7 @@ const PlayerDashboard = () => {
                             {booking.checkedIn ? (
                               <p className="text-green-400 text-xs font-semibold">✅ Checked in {booking.checkedInAt ? `at ${new Date(booking.checkedInAt).toLocaleTimeString()}` : ''} — one scan only</p>
                             ) : (
-                              <PoolQr payload={poolQrMap[booking._id]} ticketId={booking.ticketId} checkedIn={!!booking.checkedIn} isExpired={false} />
+                              <PoolQr payload={poolQrMap[booking._id]?.qrPayload} ticketId={booking.ticketId} checkedIn={!!booking.checkedIn} isExpired={!!poolQrMap[booking._id]?.isExpired} />
                             )}
                           </div>
                         )}
