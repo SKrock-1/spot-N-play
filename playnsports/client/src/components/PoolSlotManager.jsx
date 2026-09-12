@@ -3,9 +3,21 @@ import { CalendarDays, CreditCard, ClipboardList, Circle, CircleDot, UserRound, 
 import API from '../api/axios';
 import { useSocket } from '../context/SocketContext';
 
+const camErrorText = (e) => {
+  const name = e?.name || '';
+  const msg = (e?.message || '').toLowerCase();
+  if (name === 'NotAllowedError') return 'Camera permission denied — allow camera for this site in the browser, then tap Scan again. Or upload a QR photo below.';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No usable camera found on this device — upload a QR photo below or type the ticket ID.';
+  if (name === 'SecurityError' || msg.includes('secure') || msg.includes('https') || msg.includes('getusermedia'))
+    return 'This browser blocks the camera on non-HTTPS addresses — open this page via http://localhost:5173 on the venue PC, or upload a QR photo below.';
+  return `Camera failed (${e?.message || 'unknown error'}) — upload a QR photo below or type the ticket ID.`;
+};
+
 const ScannerBox = ({ groundId, onScanned, showMessage }) => {
   const [manual, setManual] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [camError, setCamError] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const doCheckin = async (payload) => {
     try {
@@ -22,26 +34,58 @@ const ScannerBox = ({ groundId, onScanned, showMessage }) => {
   useEffect(() => {
     if (!scanning) return;
     let html5Qr;
+    let cancelled = false;
     (async () => {
       const { Html5Qrcode } = await import('html5-qrcode');
+      if (cancelled) return;
       html5Qr = new Html5Qrcode('pool-qr-reader');
       try {
         await html5Qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 },
-          (decoded) => { doCheckin({ qrPayload: decoded }); setScanning(false); html5Qr.stop().catch(()=>{}); },
+          (decoded) => { doCheckin({ qrPayload: decoded }); setScanning(false); try { html5Qr.stop().catch(()=>{}); } catch {} },
           () => {});
-      } catch { showMessage?.('Camera failed — use manual ticket entry', 'error'); setScanning(false); }
+        setCamError('');
+      } catch (e) {
+        if (cancelled) return;
+        const msg = camErrorText(e);
+        setCamError(msg);
+        showMessage?.(msg, 'error');
+        setScanning(false);
+        try { html5Qr.clear().catch(()=>{}); } catch {}
+      }
     })();
-    return () => { try { html5Qr?.stop().catch(()=>{}); } catch {} };
+    return () => { cancelled = true; try { html5Qr?.stop().catch(()=>{}); } catch {} };
   }, [scanning]);
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const decoded = await Html5Qrcode.scanFile(file, false);
+      await doCheckin({ qrPayload: decoded });
+    } catch (err) {
+      const msg = err?.message && !/no qr/i.test(err.message) ? `Photo scan failed: ${err.message}` : 'No QR found in that photo — try a clearer shot or type the ticket ID.';
+      setLastResult({ ok: false, msg });
+      showMessage?.(msg, 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
   return (
     <div className="mb-4 p-4 rounded-2xl border border-green-400/20 bg-green-400/5">
       <p className="text-sm font-bold text-green-400 flex items-center gap-2"><ScanLine size={16} /> Gate Scanner — one scan = one entry</p>
       <p className="text-[11px] text-gray-500 mb-3">Screenshot reuse blocked — second scan of same QR is rejected as “Already checked in”.</p>
-      {!scanning ? <button onClick={() => setScanning(true)} className="bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm">📷 Scan QR</button> : <button onClick={() => setScanning(false)} className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-4 py-2 rounded-xl text-sm">Stop</button>}
+      {!scanning ? <button onClick={() => { setCamError(''); setScanning(true); }} className="bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm min-h-[44px]">📷 Scan QR</button> : <button onClick={() => setScanning(false)} className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-4 py-2 rounded-xl text-sm min-h-[44px]">Stop</button>}
       <div id="pool-qr-reader" className="mt-3 rounded-xl overflow-hidden" style={{ display: scanning ? 'block' : 'none' }}></div>
+      {camError && <p className="text-xs mt-2 text-amber-500">{camError}</p>}
       <div className="flex gap-2 mt-3">
-        <input value={manual} onChange={(e)=>setManual(e.target.value.toUpperCase())} placeholder="SPT-XXXXXXXX" className="input-field flex-1" style={{fontFamily:'monospace'}} />
-        <button onClick={() => manual.trim() && doCheckin({ ticketId: manual.trim() })} className="bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm">Check-in</button>
+        <label className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer whitespace-nowrap min-h-[44px] inline-flex items-center">
+          {uploading ? 'Reading…' : '📤 Upload QR photo'}
+          <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+        </label>
+        <input value={manual} onChange={(e)=>setManual(e.target.value.toUpperCase())} placeholder="SPT-XXXXXXXX" className="input-field flex-1 min-h-[44px]" style={{fontFamily:'monospace', fontSize: 16}} />
+        <button onClick={() => manual.trim() && doCheckin({ ticketId: manual.trim() })} className="bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm min-h-[44px]">Check-in</button>
       </div>
       {lastResult && <p className={`text-xs mt-2 font-semibold ${lastResult.ok ? 'text-green-400' : 'text-red-400'}`}>{lastResult.msg}</p>}
     </div>
