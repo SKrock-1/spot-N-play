@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CalendarDays, CreditCard, ClipboardList, Circle, CircleDot, UserRound, Waves, Ticket, FileText, Lock, ScanLine, Search } from 'lucide-react';
 import API from '../api/axios';
 import { useSocket } from '../context/SocketContext';
@@ -31,18 +31,50 @@ const ScannerBox = ({ groundId, onScanned, showMessage }) => {
       showMessage?.(msg, 'error');
     }
   };
+  const scannerRef = useRef(null);
+
+  // Start the best available camera: explicit rear camera on phones, any
+  // camera on desktops. Never relies on a single facingMode constraint,
+  // which throws OverconstrainedError on devices without a rear camera.
+  const startBestCamera = async (Html5Qrcode, instance, onDecode) => {
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    try {
+      const cams = await Html5Qrcode.getCameras().catch(() => []);
+      if (cams && cams.length) {
+        const back = cams.find((c) => /back|rear|environment/i.test(c.label || ''));
+        await instance.start(back ? back.id : cams[0].id, config, onDecode, () => {});
+        return;
+      }
+    } catch (e) {
+      // getCameras itself needs permission on some browsers — if it throws
+      // a permission/security error there is no point retrying constraints.
+      if (/NotAllowedError|SecurityError/i.test(e?.name || '')) throw e;
+    }
+    try {
+      await instance.start({ facingMode: 'environment' }, config, onDecode, () => {});
+    } catch (e) {
+      if (/OverconstrainedError|NotFoundError/i.test(e?.name || '')) {
+        await instance.start(true, config, onDecode, () => {}); // any default camera
+      } else throw e;
+    }
+  };
+
   useEffect(() => {
     if (!scanning) return;
-    let html5Qr;
     let cancelled = false;
+    let instance = null;
     (async () => {
       const { Html5Qrcode } = await import('html5-qrcode');
       if (cancelled) return;
-      html5Qr = new Html5Qrcode('pool-qr-reader');
+      try { await scannerRef.current?.clear().catch(() => {}); } catch {}
+      instance = new Html5Qrcode('pool-qr-reader');
+      scannerRef.current = instance;
       try {
-        await html5Qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 },
-          (decoded) => { doCheckin({ qrPayload: decoded }); setScanning(false); try { html5Qr.stop().catch(()=>{}); } catch {} },
-          () => {});
+        await startBestCamera(Html5Qrcode, instance, (decoded) => {
+          doCheckin({ qrPayload: decoded });
+          setScanning(false);
+        });
+        if (cancelled) { try { await instance.clear().catch(() => {}); } catch {} return; }
         setCamError('');
       } catch (e) {
         if (cancelled) return;
@@ -50,10 +82,15 @@ const ScannerBox = ({ groundId, onScanned, showMessage }) => {
         setCamError(msg);
         showMessage?.(msg, 'error');
         setScanning(false);
-        try { html5Qr.clear().catch(()=>{}); } catch {}
+        try { await instance.clear().catch(() => {}); } catch {}
       }
     })();
-    return () => { cancelled = true; try { html5Qr?.stop().catch(()=>{}); } catch {} };
+    return () => {
+      cancelled = true;
+      const inst = instance || scannerRef.current;
+      scannerRef.current = null;
+      try { inst?.clear().catch(() => {}); } catch {}
+    };
   }, [scanning]);
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
