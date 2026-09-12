@@ -48,6 +48,17 @@ const useLocalStyles = () => {
       .pbp .modal-box { background: #0f0f0f; border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 22px; max-width: 420px; width: 100%; color: #fff; }
       .pbp .summary-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(107,114,128,0.12); }
       .pbp .summary-row:last-child { border-bottom: none; }
+      .pbp .stepper-btn { width: 44px; height: 44px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 20px; font-weight: 700; background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.1); color: inherit; }
+      html.dark .pbp .stepper-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+      .pbp .stepper-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+      .pbp .stepper-btn:not(:disabled):active { transform: scale(0.94); background: rgba(74,222,128,0.15); }
+      @media (max-width: 640px) {
+        .pbp .input-field { font-size: 16px; }
+        .pbp .btn-primary, .pbp .btn-secondary { min-height: 44px; }
+        .pbp .tab-btn { padding: 12px 14px; }
+        .pbp .pay-row { flex-direction: column; align-items: stretch; }
+        .pbp .pay-row .btn-primary { width: 100%; justify-content: center; }
+      }
       .pbp .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
     `;
     document.head.appendChild(style);
@@ -133,7 +144,7 @@ const Stepper = ({ step, onJump }) => (
 );
 
 const StepNav = ({ onBack, onNext, nextLabel, nextDisabled, nextIcon: NextIcon = ChevronRight, showBack = true }) => (
-  <div className="flex items-center justify-between mt-6 pt-5 border-t border-black/8 dark:border-white/8">
+  <div className="pay-row flex items-center justify-between gap-3 mt-6 pt-5 border-t border-black/8 dark:border-white/8">
     {showBack ? (
       <button className="btn-secondary" onClick={onBack}><ChevronLeft size={15} /> Back</button>
     ) : <span />}
@@ -196,6 +207,17 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const [planTypeId, setPlanTypeId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [partySize, setPartySize] = useState(1);
+  // Free-type buffer for the swimmers field: typing must never be force-
+  // clamped mid-keystroke (typing "5" after "1" used to become "15" → 7).
+  // Committed + clamped on blur / Enter / stepper / pay.
+  const [partyInput, setPartyInput] = useState('1');
+  const maxParty = checkoutInfo?.maxPartySize || 7;
+  const clampPartyUi = (n) => {
+    const v = parseInt(n, 10);
+    if (Number.isNaN(v)) return 1;
+    return Math.min(Math.max(v, 1), maxParty);
+  };
+  const setParty = (n) => { const c = clampPartyUi(n); setPartySize(c); setPartyInput(String(c)); };
   const [includeRegistration, setIncludeRegistration] = useState(false);
   const [healthConfirmed, setHealthConfirmed] = useState(false);
   const [certUrl, setCertUrl] = useState('');
@@ -254,7 +276,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
       setConfirmSlot(slot);
     } else {
       setChosenSlot(slot);
-      setPartySize(1);
+      setParty(1);
       setIncludeRegistration(false);
       setHealthConfirmed(false);
       setStep(3);
@@ -286,13 +308,16 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
 
   const handlePay = async () => {
     if (!chosenSlot || !planTypeId || !categoryId || !healthConfirmed) return;
+    // Commit any half-typed swimmer count first so Pay always uses the final value
+    const finalParty = clampPartyUi(partyInput);
+    setParty(finalParty);
     setPaying(true);
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) { showMessage?.('Razorpay failed to load. Check your connection.', 'error'); setPaying(false); return; }
 
     const bookingBody = {
       poolId: activePool.poolId, date: selectedDate, startTime: chosenSlot.startTime,
-      planTypeId, categoryId, partySize, includeRegistration, healthConfirmed,
+      planTypeId, categoryId, partySize: finalParty, includeRegistration, healthConfirmed,
     };
 
     try {
@@ -335,10 +360,12 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
 
   const resetWizard = () => {
     setTicket(null);
+    setQrPayload(null);
     setStep(1);
     setChosenSlot(null);
     setPlanTypeId('');
     setCategoryId('');
+    setParty(1);
     setHealthConfirmed(false);
   };
 
@@ -530,8 +557,19 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
           <div>
             <div className="mb-5">
               <label className="label">Number of swimmers (max {checkoutInfo.maxPartySize})</label>
-              <input type="number" min="1" max={checkoutInfo.maxPartySize} className="input-field w-32" value={partySize}
-                onChange={(e) => setPartySize(Math.max(1, Math.min(Number(e.target.value) || 1, checkoutInfo.maxPartySize)))} />
+              <div className="flex items-center gap-3">
+                <button type="button" aria-label="One fewer swimmer" className="stepper-btn" disabled={partySize <= 1} onClick={() => setParty(partySize - 1)}>−</button>
+                <input
+                  type="number" inputMode="numeric" min="1" max={checkoutInfo.maxPartySize}
+                  className="input-field text-center font-bold" style={{ maxWidth: 96 }}
+                  value={partyInput}
+                  onChange={(e) => setPartyInput(e.target.value)}
+                  onBlur={(e) => setParty(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                  aria-label="Number of swimmers"
+                />
+                <button type="button" aria-label="One more swimmer" className="stepper-btn" disabled={partySize >= checkoutInfo.maxPartySize} onClick={() => setParty(partySize + 1)}>+</button>
+              </div>
               <p className="text-[11px] text-gray-500 mt-1.5">Each swimmer must have their own valid booking.</p>
             </div>
 
@@ -626,7 +664,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
             {/* <p className="text-sm text-pink-300 mb-5">If you book this and are found not to be female at the venue, <strong>no refund will be given.</strong></p> */}
             <div className="flex gap-3">
               <button className="btn-secondary flex-1 justify-center" onClick={() => setConfirmSlot(null)}><X size={14} /> Cancel</button>
-              <button className="btn-primary flex-1 justify-center" onClick={() => { setChosenSlot(confirmSlot); setPartySize(1); setIncludeRegistration(false); setHealthConfirmed(false); setConfirmSlot(null); setStep(3); }}>I understand, continue</button>
+              <button className="btn-primary flex-1 justify-center" onClick={() => { setChosenSlot(confirmSlot); setParty(1); setIncludeRegistration(false); setHealthConfirmed(false); setConfirmSlot(null); setStep(3); }}>I understand, continue</button>
             </div>
           </div>
         </div>
