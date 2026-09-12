@@ -358,6 +358,30 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
     }
   };
 
+  // DEV-ONLY dummy booking: same payload straight to dummy-verify, no
+  // Razorpay. The button below only renders when import.meta.env.DEV, so
+  // production builds can never show it.
+  const handleDummyPay = async () => {
+    if (!chosenSlot || !planTypeId || !categoryId || !healthConfirmed) return;
+    const finalParty = clampPartyUi(partyInput);
+    setParty(finalParty);
+    setPaying(true);
+    try {
+      const { data } = await API.post(`/pools/${ground._id}/dummy-verify`, {
+        poolId: activePool.poolId, date: selectedDate, startTime: chosenSlot.startTime,
+        planTypeId, categoryId, partySize: finalParty, includeRegistration, healthConfirmed,
+        medicalCertificateUrl: certUrl,
+      });
+      setTicket(data.booking);
+      showMessage?.('Test booking confirmed 🧪 No payment taken');
+      fetchAll();
+    } catch (err) {
+      showMessage?.(err.response?.data?.message || 'Dummy booking failed (is the backend flag on?)', 'error');
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const resetWizard = () => {
     setTicket(null);
     setQrPayload(null);
@@ -625,6 +649,16 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
               nextDisabled={paying || !healthConfirmed}
               nextIcon={CreditCard}
             />
+            {import.meta.env.DEV && (
+              <button
+                onClick={handleDummyPay}
+                disabled={paying || !healthConfirmed}
+                className="btn-secondary w-full justify-center mt-3"
+                title="Local testing only — no money moves. Never shown in production builds."
+              >
+                🧪 {paying ? 'Booking…' : `Test booking (no payment) · ₹${estimatedTotal}`}
+              </button>
+            )}
             {!healthConfirmed && <p className="text-[11px] text-amber-500 text-right mt-2">Confirm the health & safety declaration above to continue.</p>}
           </div>
         )}

@@ -208,12 +208,21 @@ const createPoolOrder = asyncHandler(async (req, res) => {
 });
 
 const verifyPoolPayment = asyncHandler(async (req, res) => {
-  const { razorpayOrderId, razorpayPaymentId, razorpaySignature, medicalCertificateUrl } = req.body;
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
   const body = `${razorpayOrderId}|${razorpayPaymentId}`;
   const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body).digest('hex');
   if (expectedSignature !== razorpaySignature) { res.status(400); throw new Error('Payment verification failed'); }
 
+  await finalizePoolBooking(req, res, { razorpayOrderId, razorpayPaymentId, dummy: false });
+});
+
+// Shared tail of real + dummy verification: re-resolves the booking context
+// server-side, atomically claims capacity, creates the Booking + Payment,
+// and fires email/notifications. The ONLY difference between callers is how
+// payment authenticity was established — everything downstream is identical.
+const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentId, dummy }) => {
+  const { medicalCertificateUrl } = req.body;
   const { ground, error } = await loadLiveBookablePool(req.params.groundId);
   if (error) { res.status(error.status); throw new Error(error.message); }
 
@@ -305,11 +314,29 @@ const verifyPoolPayment = asyncHandler(async (req, res) => {
   notifyPoolBookingConfirmed({ groundId: ground._id, groundName: ground.name, userId: req.user._id, ticketId, date: ctx.date, startTime: ctx.startTime });
   notifySlotBooked({ ownerId: ground.owner, actorId: req.user._id, groundId: ground._id, groundName: ground.name, date: ctx.date, startTime: ctx.startTime, endTime: ctx.block.endTime });
 
+  if (dummy) console.log(`[dummy-pay] ${ticketId} ${ground.name} ${ctx.date} ${ctx.startTime} x${ctx.partySize} ₹${ctx.priceInfo.totalAmount} — NO MONEY MOVED`);
+
   res.json({
-    message: 'Payment successful — your pool session is booked 🎉 Your ticket has been emailed to you.',
+    message: dummy
+      ? 'Test booking confirmed 🧪 No payment taken — your ticket is below.'
+      : 'Payment successful — your pool session is booked 🎉 Your ticket has been emailed to you.',
     booking: sanitizeBookingForPlayer(booking),
     ticketId,
+    ...(dummy ? { dummy: true } : {}),
   });
+};
+
+// ── DEV-ONLY dummy verification (local testing without Razorpay) ─────────
+// Double-gated: requires ALLOW_DUMMY_PAYMENTS=true AND a non-production
+// NODE_ENV. Returns 403 otherwise, so production can never serve it even
+// if the route file ships there. Runs the exact same finalizePoolBooking
+// tail as real payments — same validation, capacity claim, ticket, QR.
+const dummyVerifyPoolPayment = asyncHandler(async (req, res) => {
+  if (process.env.ALLOW_DUMMY_PAYMENTS !== 'true' || process.env.NODE_ENV === 'production') {
+    res.status(403); throw new Error('Dummy payments are disabled');
+  }
+  const stamp = `dummy_${Date.now()}`;
+  await finalizePoolBooking(req, res, { razorpayOrderId: stamp, razorpayPaymentId: null, dummy: true });
 });
 
 // ── Player: QR payloads for my active pool tickets (signed) ──────────────
@@ -461,4 +488,4 @@ const adminCancelPoolBooking = asyncHandler(async (req, res) => {
   res.json({ message: 'Pool booking cancelled & refunded ✅' });
 });
 
-export { getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, adminCancelPoolBooking, getMyPoolQrs, getPoolOwnerBookings, checkinPoolBooking };
+export { getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, dummyVerifyPoolPayment, adminCancelPoolBooking, getMyPoolQrs, getPoolOwnerBookings, checkinPoolBooking };

@@ -10,7 +10,7 @@ import {
   updateVenueFees,
 } from '../controllers/poolConfigController.js';
 import {
-  getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, adminCancelPoolBooking,
+  getPoolAvailability, getPoolPlans, createPoolOrder, verifyPoolPayment, dummyVerifyPoolPayment, adminCancelPoolBooking,
   getMyPoolQrs, getPoolOwnerBookings, checkinPoolBooking,
 } from '../controllers/poolBookingController.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -57,6 +57,7 @@ router.get('/:groundId/availability', protect, getPoolAvailability);
 router.get('/:groundId/checkout-info', protect, getPoolPlans);
 router.post('/:groundId/order', ...canBook, createPoolOrder);
 router.post('/:groundId/verify', ...canBook, verifyPoolPayment);
+router.post('/:groundId/dummy-verify', ...canBook, dummyVerifyPoolPayment);
 router.get('/:groundId/bookings', protect, authorizeRoles('pool_owner', 'admin'), getPoolOwnerBookings);
 router.post('/:groundId/bookings/checkin', protect, authorizeRoles('pool_owner', 'admin'), checkinPoolBooking);
 
