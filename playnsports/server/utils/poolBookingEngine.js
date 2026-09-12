@@ -7,8 +7,8 @@ export const todayStr = () => new Date().toISOString().split('T')[0];
 export const MAX_ADVANCE_DAYS = 7;
 
 // Max people one player can reserve per pool per calendar date, whether
-// that's one 7-person booking or several smaller ones added up.
-export const MAX_DAILY_HEADCOUNT = 7;
+// that's one 10-person booking or several smaller ones added up.
+export const MAX_DAILY_HEADCOUNT = 10;
 
 // "HH:MM" right now, in the server's local time — used only to tell whether
 // a slot on TODAY has already started. Dates in the future are never
