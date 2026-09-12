@@ -53,6 +53,7 @@ const AdminPanel = () => {
   // Users
   const [users, setUsers] = useState([]);
   const [userSearch, setUserSearch] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState({});
 
   // Bookings
   const [allBookings,   setAllBookings]   = useState([]);
@@ -180,6 +181,17 @@ const AdminPanel = () => {
       flash(label);
       fetchGrounds();
     } catch (err) { flash(err.response?.data?.message || 'Failed', 'error'); }
+  };
+  const handleAssignOwner = async (id) => {
+    const email = (ownerEmail[id] || '').trim();
+    if (!email) { flash('Type the manager’s login email first', 'error'); return; }
+    if (!window.confirm(`Hand this venue to ${email}? They'll become its owner and manage bookings/scanning from their normal login.`)) return;
+    try {
+      const { data } = await API.patch(`/admin/grounds/${id}/owner`, { email });
+      flash(data.message);
+      setOwnerEmail((prev) => ({ ...prev, [id]: '' }));
+      fetchGrounds();
+    } catch (err) { flash(err.response?.data?.message || 'Failed to assign owner', 'error'); }
   };
   const handleDeleteGround = async (id, name) => {
     if (!confirm(`Delete "${name}"? This also removes its bookings, payments, and leads. This cannot be undone.`)) return;
@@ -511,9 +523,24 @@ const AdminPanel = () => {
                       )}
                     </div>
 
-                    {/* Commission & trial→live controls — only relevant once a venue is approved */}
+                    {/* Hand venue to a manager + commission & trial→live controls — only relevant once a venue is approved */}
                     {groundFilter === 'approved' && (
                       <div className="mt-4 pt-4 border-t border-black/8 dark:border-white/8 flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500">Manager email</label>
+                          <input
+                            type="email"
+                            value={ownerEmail[ground._id] || ''}
+                            onChange={(e) => setOwnerEmail((prev) => ({ ...prev, [ground._id]: e.target.value }))}
+                            placeholder={ground.owner?.email || 'manager@email.com'}
+                            className="w-48 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white outline-none focus:border-green-400"
+                          />
+                          <button
+                            onClick={() => handleAssignOwner(ground._id)}
+                            className="bg-green-400/15 border border-green-400/25 text-green-400 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-400/25 transition-all whitespace-nowrap"
+                            title="Make this login the venue owner — they keep using normal login and get Manage + Scanner on the venue page"
+                          >🤝 Hand over</button>
+                        </div>
                         <div className="flex items-center gap-2">
                           <label className="text-xs text-gray-500">Commission %</label>
                           <input

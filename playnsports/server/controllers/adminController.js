@@ -59,6 +59,30 @@ const setVenueMode = asyncHandler(async (req, res) => {
   res.json({ message: `Venue is now in ${label}`, ground });
 });
 
+// Admin hands a venue to a manager account: looks the user up by email,
+// flips their role to the matching owner role, and sets them as the
+// venue's owner — this is how a pool manager gets their login. They keep
+// using the normal /login portal; afterwards the pool page and
+// /pool/manage/:id show them the Manage + Scanner options.
+const assignVenueOwner = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email?.trim()) { res.status(400); throw new Error('Owner email is required'); }
+  const user = await User.findOne({ email: String(email).trim().toLowerCase() });
+  if (!user) { res.status(404); throw new Error('No user found with that email — ask them to register first'); }
+  if (user.role === 'admin') { res.status(400); throw new Error('Cannot hand a venue to an admin account — use a manager account'); }
+  const ground = await Ground.findById(req.params.id);
+  if (!ground) { res.status(404); throw new Error('Venue not found'); }
+  const ownerRole = ground.venueType === 'pool' ? 'pool_owner' : ground.venueType === 'gym' ? 'gym_owner' : 'ground_owner';
+  user.role = ownerRole;
+  await user.save();
+  ground.owner = user._id;
+  await ground.save();
+  res.json({
+    message: `${ground.name} handed to ${user.name} (${ownerRole}) ✅ — they can log in normally and manage it`,
+    ground, user: { _id: user._id, name: user.name, email: user.email, role: user.role },
+  });
+});
+
 // Admin-only venue deletion. This is the ONLY way a venue should ever be
 // deleted — deleting the Ground doc directly (e.g. straight from Mongo)
 // leaves orphaned Booking/Payment/VenueLead records pointing at a venue
@@ -351,5 +375,5 @@ export {
   getAllUsers, toggleUserActive, updateUserRole, getAllBookings,
   getEventsForAdmin, approveEvent, rejectEvent,
   getAllContactMessages, markContactMessageRead,
-  setVenueCommission, setVenueMode, deleteVenue,
+  setVenueCommission, setVenueMode, deleteVenue, assignVenueOwner,
 };

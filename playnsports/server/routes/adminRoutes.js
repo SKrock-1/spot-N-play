@@ -6,7 +6,7 @@ import {
   getAllUsers, toggleUserActive, updateUserRole, getAllBookings,
   getEventsForAdmin, approveEvent, rejectEvent,
   getAllContactMessages, markContactMessageRead,
-  setVenueCommission, setVenueMode, deleteVenue,
+  setVenueCommission, setVenueMode, deleteVenue, assignVenueOwner,
 } from '../controllers/adminController.js';
 import {
   createCareer,
@@ -61,6 +61,7 @@ router.get('/bookings', ...admin, getAllBookings);
 // Venue commission split & trial→live switch
 router.patch('/grounds/:id/commission', ...admin, setVenueCommission);
 router.patch('/grounds/:id/venue-mode', ...admin, setVenueMode);
+router.patch('/grounds/:id/owner', ...admin, assignVenueOwner);
 router.delete('/grounds/:id', ...admin, deleteVenue);
 
 // Events approval
