@@ -266,8 +266,15 @@ const PoolSlotManager = ({ ground, onRefresh, showMessage }) => {
   const fetchBookings = useCallback(async () => {
     setBookingsLoading(true);
     try {
-      const { data } = await API.get(`/bookings/grounds/${ground._id}`);
-      setBookings(data.filter((b) => b.poolId));
+      // Dedicated pool-owner board first (full ticket/pool/payout fields);
+      // fall back to the generic ground bookings list filtered to pool rows.
+      try {
+        const { data } = await API.get(`/pools/${ground._id}/bookings`);
+        setBookings(Array.isArray(data) ? data : []);
+      } catch {
+        const { data } = await API.get(`/bookings/grounds/${ground._id}`);
+        setBookings((Array.isArray(data) ? data : []).filter((b) => b.poolId));
+      }
     } catch (err) {
       showMessage?.(err.response?.data?.message || 'Failed to load bookings', 'error');
     } finally {

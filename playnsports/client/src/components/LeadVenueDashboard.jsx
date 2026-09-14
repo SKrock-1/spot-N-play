@@ -21,6 +21,8 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
   const [activeTab, setActiveTab] = useState('venue');
   const [venue, setVenue] = useState(null);
   const [leads, setLeads] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success');
@@ -67,10 +69,43 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
     }
   };
 
+  // Live pool venues take real paid bookings (Booking docs with poolId),
+  // not VenueLeads — those never show up in /venues/my/leads, which is why
+  // the dashboard count stayed at 0 after going live. The dedicated
+  // /pools/:id/bookings endpoint is the source of truth; the generic
+  // /bookings/grounds/:id list is only a fallback.
+  const fetchPoolBookings = async (venueId) => {
+    if (!venueId) { setBookings([]); return; }
+    setBookingsLoading(true);
+    try {
+      const { data } = await API.get(`/pools/${venueId}/bookings`);
+      setBookings(Array.isArray(data) ? data : []);
+    } catch {
+      try {
+        const { data } = await API.get(`/bookings/grounds/${venueId}`);
+        setBookings((Array.isArray(data) ? data : []).filter((b) => b.poolId));
+      } catch {
+        setBookings([]);
+      }
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
   useEffect(() => {
     Promise.all([fetchVenue(), fetchLeads()]).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venueType]);
+
+  // Once we know which venue this owner has, pull its live bookings too.
+  useEffect(() => {
+    if (venueType === 'pool' && venue?._id && venue?.venueMode === 'live') {
+      fetchPoolBookings(venue._id);
+    } else {
+      setBookings([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [venue?._id, venue?.venueMode]);
 
   const handleImagePick = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -133,10 +168,19 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
     if (!venue || !checkinTicket.trim()) return;
     setCheckinBusy(true);
     try {
-      const { data } = await API.patch(`/venues/${venue._id}/checkin`, { ticketId: checkinTicket.trim() });
-      showMessage(data.message);
-      setCheckinTicket('');
-      fetchLeads();
+      // Live pool bookings check in against the pool endpoint (Booking +
+      // QR/manual ticket). Trial venues still use the VenueLead endpoint.
+      if (venueType === 'pool' && venue?.venueMode === 'live') {
+        const { data } = await API.post(`/pools/${venue._id}/bookings/checkin`, { ticketId: checkinTicket.trim() });
+        showMessage(data.message);
+        setCheckinTicket('');
+        fetchPoolBookings(venue._id);
+      } else {
+        const { data } = await API.patch(`/venues/${venue._id}/checkin`, { ticketId: checkinTicket.trim() });
+        showMessage(data.message);
+        setCheckinTicket('');
+        fetchLeads();
+      }
     } catch (err) {
       showMessage(err?.response?.data?.message || 'Check-in failed', 'error');
     } finally {
@@ -146,6 +190,11 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
 
   const badge = venue ? STATUS_BADGE[venue.approvalStatus] : null;
   const checkedInCount = leads.filter((l) => l.status === 'checked_in').length;
+  const isLivePool = venueType === 'pool' && venue?.venueMode === 'live';
+  const poolCheckedIn = bookings.filter((b) => b.checkedIn).length;
+  const poolRevenue = bookings
+    .filter((b) => !['cancelled', 'refunded'].includes(b.status))
+    .reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0);
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] dark:bg-[#060606] text-gray-900 dark:text-white" style={{ fontFamily: 'DM Sans, sans-serif' }}>
@@ -182,25 +231,44 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
         </h1>
         <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">{subtitle}</p>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
-            <p className="text-2xl font-bold text-green-500 dark:text-green-400">{leads.length}</p>
-            <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">{venue?.venueMode === 'interest' ? 'Interested Users' : 'Total Leads'}</p>
+        {/* Stats — live pool venues show real paid bookings (Booking docs),
+            not trial/interest leads, so the count actually moves when
+            someone books. Trial/interest venues keep the lead stats. */}
+        {isLivePool ? (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
+              <p className="text-2xl font-bold text-green-500 dark:text-green-400">{bookingsLoading ? '…' : bookings.length}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Total Bookings</p>
+            </div>
+            <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
+              <p className="text-2xl font-bold text-green-500 dark:text-green-400">{bookingsLoading ? '…' : poolCheckedIn}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Checked In</p>
+            </div>
+            <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
+              <p className="text-2xl font-bold text-green-500 dark:text-green-400">₹{poolRevenue.toLocaleString('en-IN')}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Revenue</p>
+            </div>
           </div>
-          {venue?.venueMode !== 'interest' && (
-            <>
-              <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
-                <p className="text-2xl font-bold text-green-500 dark:text-green-400">{checkedInCount}</p>
-                <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Checked In</p>
-              </div>
-              <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
-                <p className="text-2xl font-bold text-green-500 dark:text-green-400">{leads.length - checkedInCount}</p>
-                <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Pending Visit</p>
-              </div>
-            </>
-          )}
-        </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
+              <p className="text-2xl font-bold text-green-500 dark:text-green-400">{leads.length}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">{venue?.venueMode === 'interest' ? 'Interested Users' : 'Total Leads'}</p>
+            </div>
+            {venue?.venueMode !== 'interest' && (
+              <>
+                <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
+                  <p className="text-2xl font-bold text-green-500 dark:text-green-400">{checkedInCount}</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Checked In</p>
+                </div>
+                <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 text-center">
+                  <p className="text-2xl font-bold text-green-500 dark:text-green-400">{leads.length - checkedInCount}</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Pending Visit</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Quick action: full bookings board + gate scanner on one page */}
         {venue && venueType === 'pool' && (
@@ -218,9 +286,10 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-5">
+        <div className="flex gap-2 mb-5 flex-wrap">
           {[
             ['venue', `My ${title}`],
+            ...(isLivePool ? [['bookings', `Bookings (${bookings.length})`]] : []),
             ['leads', `Leads (${leads.length})`],
             ...(venue?.venueMode === 'live' ? [['booking', 'Sports & Slots']] : []),
           ].map(([id, label]) => (
@@ -309,9 +378,77 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
           </div>
         )}
 
+        {activeTab === 'bookings' && isLivePool && (
+          <div>
+            <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 mb-4 flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={checkinTicket}
+                onChange={(e) => setCheckinTicket(e.target.value)}
+                placeholder="Enter ticket ID to check someone in (e.g. SPT-XXXXXXXX)"
+                className="flex-1 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-green-400/50 uppercase"
+              />
+              <button
+                onClick={handleCheckIn}
+                disabled={checkinBusy || !checkinTicket.trim()}
+                className="bg-gradient-to-r from-green-400 to-green-600 text-black font-bold text-sm rounded-xl px-5 py-2.5 disabled:opacity-50 whitespace-nowrap"
+              >
+                {checkinBusy ? 'Checking…' : 'Check In'}
+              </button>
+              <button
+                onClick={() => venue && fetchPoolBookings(venue._id)}
+                disabled={bookingsLoading}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-green-500 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2.5 whitespace-nowrap disabled:opacity-50"
+              >
+                {bookingsLoading ? 'Loading…' : '↻ Refresh'}
+              </button>
+            </div>
+
+            {bookingsLoading && <p className="text-gray-500 text-sm text-center py-8">Loading bookings…</p>}
+            {!bookingsLoading && bookings.length === 0 && (
+              <div className="text-center py-16 text-gray-400">
+                <span className="text-4xl">📅</span>
+                <p className="text-sm mt-2">No bookings yet — they'll show up here as soon as someone books a pool session.</p>
+              </div>
+            )}
+            {!bookingsLoading && bookings.length > 0 && (
+              <div className="rounded-2xl border border-black/8 dark:border-white/8 overflow-hidden">
+                {bookings.map((b) => (
+                  <div key={b._id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-black/5 dark:border-white/5 last:border-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img src={b.player?.avatar || '/favicon.svg'} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {b.player?.name || 'Player'}
+                          <span className="font-normal text-gray-500"> · {b.partySize || 1} {((b.partySize || 1) === 1) ? 'person' : 'people'}</span>
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {b.poolName ? `${b.poolName} · ` : ''}{b.date} {b.startTime}{b.endTime ? `–${b.endTime}` : ''}{b.membershipPlanName ? ` · ${b.membershipPlanName}` : ''}
+                        </p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                          🎟️ {b.ticketId} · ₹{b.totalPrice}{b.checkedIn ? ` · ✅ ${b.checkinMethod === 'qr' ? 'QR' : 'manual'}` : ''} · {b.status}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-bold px-2 py-1 rounded-full flex-shrink-0 ${
+                      b.checkedIn ? 'bg-green-400/10 text-green-500 dark:text-green-400 border border-green-400/20'
+                      : ['cancelled', 'refunded'].includes(b.status) ? 'bg-gray-400/10 text-gray-500 border border-gray-400/20'
+                      : 'bg-yellow-400/10 text-yellow-500 dark:text-yellow-400 border border-yellow-400/20'
+                    }`}>
+                      {b.checkedIn ? '✅ Checked In' : ['cancelled', 'refunded'].includes(b.status) ? b.status : '🎟️ Booked'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'leads' && (
           <div>
-            {venue && venue.venueMode !== 'interest' && (
+            {/* Live pool check-in lives on the Bookings tab (Booking tickets,
+                not VenueLead tickets) — don't show the trial box here. */}
+            {venue && venue.venueMode !== 'interest' && !isLivePool && (
               <div className="rounded-2xl border border-black/8 dark:border-white/8 p-4 mb-4 flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
