@@ -311,7 +311,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const activePool = availability?.pools?.find((p) => p.poolId === activePoolId) || availability?.pools?.[0];
   const selectedPlanType = checkoutInfo?.planTypes?.find((p) => p._id === planTypeId) || hourlyPlanTypes[0] || null;
   const selectedCategory = selectedPlanType?.categories?.find((c) => c._id === categoryId);
-  const estimatedTotal = selectedCategory ? selectedCategory.price * partySize + (includeRegistration ? (checkoutInfo?.registrationFee || 0) : 0) : 0;
+  const estimatedTotal = selectedCategory ? selectedCategory.price * partySize + (bookingMode === 'membership' && includeRegistration ? (checkoutInfo?.registrationFee || 0) : 0) : 0;
   const quickDates = useMemo(() => [addDays(0), addDays(1), addDays(2)], []);
 
   const jumpTo = (n) => { if (n < step) setStep(n); };
@@ -375,7 +375,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
 
     const bookingBody = {
       poolId: activePool.poolId, date: selectedDate, startTime: chosenSlot.startTime,
-      planTypeId, categoryId, partySize: finalParty, includeRegistration, healthConfirmed,
+      planTypeId, categoryId, partySize: finalParty, includeRegistration: bookingMode === 'membership' ? includeRegistration : false, healthConfirmed,
     };
 
     try {
@@ -427,7 +427,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
     try {
       const { data } = await API.post(`/pools/${ground._id}/dummy-verify`, {
         poolId: activePool.poolId, date: selectedDate, startTime: chosenSlot.startTime,
-        planTypeId, categoryId, partySize: finalParty, includeRegistration, healthConfirmed,
+        planTypeId, categoryId, partySize: finalParty, includeRegistration: bookingMode === 'membership' ? includeRegistration : false, healthConfirmed,
         medicalCertificateUrl: certUrl,
       });
       setTicket(data.booking);
@@ -522,7 +522,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
           <button
             type="button"
-            onClick={() => { setBookingMode('hourly'); setStep(1); setPlanTypeId(hourlyPlanTypes[0]?._id || ''); setCategoryId(''); setChosenSlot(null); setHealthConfirmed(false); setRulesConfirmed(false); }}
+            onClick={() => { setBookingMode('hourly'); setStep(1); setPlanTypeId(hourlyPlanTypes[0]?._id || ''); setCategoryId(''); setChosenSlot(null); setIncludeRegistration(false); setHealthConfirmed(false); setRulesConfirmed(false); }}
             className={`text-left rounded-2xl border-2 p-4 transition-all ${bookingMode === 'hourly' ? 'border-green-500 bg-green-500/10' : 'border-black/10 dark:border-white/10 hover:border-green-500/30'}`}
           >
             <p className="text-sm font-bold flex items-center gap-2"><Clock size={14} className={bookingMode === 'hourly' ? 'text-green-500' : 'text-gray-400'} /> Hourly</p>
@@ -532,7 +532,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
           </button>
           <button
             type="button"
-            onClick={() => { setBookingMode('membership'); setStep(1); setPlanTypeId(''); setCategoryId(''); setChosenSlot(null); setHealthConfirmed(false); setRulesConfirmed(false); }}
+            onClick={() => { setBookingMode('membership'); setStep(1); setPlanTypeId(''); setCategoryId(''); setChosenSlot(null); setIncludeRegistration(false); setHealthConfirmed(false); setRulesConfirmed(false); }}
             className={`text-left rounded-2xl border-2 p-4 transition-all ${bookingMode === 'membership' ? 'border-green-500 bg-green-500/10' : 'border-black/10 dark:border-white/10 hover:border-green-500/30'}`}
           >
             <p className="text-sm font-bold flex items-center gap-2"><Waves size={14} className={bookingMode === 'membership' ? 'text-green-500' : 'text-gray-400'} /> Membership</p>
@@ -751,7 +751,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
               <p className="text-[11px] text-gray-500 mt-1.5">Each swimmer must have their own valid booking.</p>
             </div>
 
-            {checkoutInfo.registrationFee > 0 && !checkoutInfo.alreadyRegistered && (
+            {bookingMode === 'membership' && checkoutInfo.registrationFee > 0 && !checkoutInfo.alreadyRegistered && (
               <div className="mb-5">
                 <p className="section-title">Registration</p>
                 <div className="flex flex-col gap-2">
