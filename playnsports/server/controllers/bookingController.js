@@ -28,6 +28,11 @@ const getMyBookings = asyncHandler(async (req, res) => {
   res.json(activeBookings.map(sanitizeBookingForPlayer));
 });
 
+const maskTicketId = (tid) => {
+  if (!tid || tid.length < 8) return tid;
+  return tid.slice(0, 4) + '****' + tid.slice(-4);
+};
+
 const getGroundBookings = asyncHandler(async (req, res) => {
   const ground = await Ground.findById(req.params.id);
   if (!ground) { res.status(404); throw new Error('Ground not found'); }
@@ -39,7 +44,17 @@ const getGroundBookings = asyncHandler(async (req, res) => {
   const bookings = await Booking.find({ ground: req.params.id })
     .populate('player', 'name phone hidePhoneNumber')
     .sort({ createdAt: -1 });
-  res.json(scrubNestedPhone(bookings, 'player', req.user._id));
+  const scrubbed = scrubNestedPhone(bookings, 'player', req.user._id);
+  // pool tickets are sensitive — owners see masked version, admin sees full
+  if (!isAdmin) {
+    const masked = scrubbed.map((b) => {
+      const obj = b.toObject ? b.toObject() : b;
+      if (obj.ticketId) obj.ticketId = maskTicketId(obj.ticketId);
+      return obj;
+    });
+    return res.json(masked);
+  }
+  res.json(scrubbed);
 });
 
 const cancelBooking = asyncHandler(async (req, res) => {

@@ -74,16 +74,22 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
   // the dashboard count stayed at 0 after going live. The dedicated
   // /pools/:id/bookings endpoint is the source of truth; the generic
   // /bookings/grounds/:id list is only a fallback.
+  const maskTicketId = (tid) => {
+    if (!tid || tid.length < 8) return tid;
+    return tid.slice(0, 4) + '****' + tid.slice(-4);
+  };
+  const sortByRecent = (arr) => [...arr].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
   const fetchPoolBookings = async (venueId) => {
     if (!venueId) { setBookings([]); return; }
     setBookingsLoading(true);
     try {
       const { data } = await API.get(`/pools/${venueId}/bookings`);
-      setBookings(Array.isArray(data) ? data : []);
+      setBookings(sortByRecent(Array.isArray(data) ? data : []));
     } catch {
       try {
         const { data } = await API.get(`/bookings/grounds/${venueId}`);
-        setBookings((Array.isArray(data) ? data : []).filter((b) => b.poolId));
+        setBookings(sortByRecent((Array.isArray(data) ? data : []).filter((b) => b.poolId)));
       } catch {
         setBookings([]);
       }
@@ -426,7 +432,7 @@ const LeadVenueDashboard = ({ venueType, title, subtitle, icon, namePlaceholder,
                           {b.poolName ? `${b.poolName} · ` : ''}{b.date} {b.startTime}{b.endTime ? `–${b.endTime}` : ''}{b.membershipPlanName ? ` · ${b.membershipPlanName}` : ''}
                         </p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                          🎟️ {b.ticketId} · ₹{b.totalPrice}{b.checkedIn ? ` · ✅ ${b.checkinMethod === 'qr' ? 'QR' : 'manual'}` : ''} · {b.status}
+                          🎟️ {maskTicketId(b.ticketId)} <span title="Full ticket visible to player only">🔒</span> · ₹{b.totalPrice}{b.checkedIn ? ` · ✅ ${b.checkinMethod === 'qr' ? 'QR' : 'manual'}` : ''} · {b.status}
                         </p>
                       </div>
                     </div>

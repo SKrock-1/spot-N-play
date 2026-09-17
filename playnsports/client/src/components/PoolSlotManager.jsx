@@ -129,6 +129,11 @@ const ScannerBox = ({ groundId, onScanned, showMessage }) => {
   );
 };
 
+const maskTicketId = (tid) => {
+  if (!tid || tid.length < 8) return tid;
+  return tid.slice(0, 4) + '****' + tid.slice(-4);
+};
+
 const BookingsFilters = ({ bookings, bookingsLoading, fetchBookings }) => {
   const [q, setQ] = useState('');
   const [dateF, setDateF] = useState('');
@@ -167,7 +172,7 @@ const BookingsFilters = ({ bookings, bookingsLoading, fetchBookings }) => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">{b.player?.name || 'Player'} <span className="text-gray-500 font-normal">· {b.partySize} people</span> {b.checkedIn && <span className="ml-2 text-[10px] bg-green-400 text-black px-1.5 py-0.5 rounded-full font-bold">✓ Checked-in {b.checkedInAt? new Date(b.checkedInAt).toLocaleTimeString():''}</span>}</p>
                 <p className="text-xs text-gray-500">{b.poolName} · {b.date} {b.startTime}–{b.endTime} · {b.membershipPlanName}</p>
-                <p className="text-[11px] text-gray-500 flex items-center gap-1"><Ticket size={11} /> {b.ticketId} · {b.status} {b.checkedIn? `· via ${b.checkinMethod}`:''}</p>
+                <p className="text-[11px] text-gray-500 flex items-center gap-1"><Ticket size={11} /> {maskTicketId(b.ticketId)} <span title="Full ticket visible to player only">🔒</span> · {b.status} {b.checkedIn? `· via ${b.checkinMethod}`:''}</p>
                 {b.medicalCertificateUrl && <a href={b.medicalCertificateUrl} target="_blank" rel="noreferrer" className="text-[11px] text-green-500 underline flex items-center gap-1"><FileText size={11} /> View medical certificate</a>}
               </div>
               <div className="text-right shrink-0">
@@ -268,12 +273,14 @@ const PoolSlotManager = ({ ground, onRefresh, showMessage }) => {
     try {
       // Dedicated pool-owner board first (full ticket/pool/payout fields);
       // fall back to the generic ground bookings list filtered to pool rows.
+      // Newest bookings first (recently booked at top).
+      const byRecent = (arr) => [...arr].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       try {
         const { data } = await API.get(`/pools/${ground._id}/bookings`);
-        setBookings(Array.isArray(data) ? data : []);
+        setBookings(byRecent(Array.isArray(data) ? data : []));
       } catch {
         const { data } = await API.get(`/bookings/grounds/${ground._id}`);
-        setBookings((Array.isArray(data) ? data : []).filter((b) => b.poolId));
+        setBookings(byRecent((Array.isArray(data) ? data : []).filter((b) => b.poolId)));
       }
     } catch (err) {
       showMessage?.(err.response?.data?.message || 'Failed to load bookings', 'error');

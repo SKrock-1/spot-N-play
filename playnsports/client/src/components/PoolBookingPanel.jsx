@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Waves, CalendarDays, Clock, CreditCard, ListChecks, CheckCircle2, ChevronLeft, ChevronRight,
-  AlertTriangle, Upload, FileText, Ticket, MapPin, Users, X, Info, HeartPulse,
+  AlertTriangle, Upload, FileText, Ticket, MapPin, Users, X, Info, HeartPulse, BookOpen, ShieldAlert,
 } from 'lucide-react';
 import API from '../api/axios';
 import PoolQr from './PoolQr';
+import PoolBookingGuide from './PoolBookingGuide';
+import PoolRules from './PoolRules';
 
 const useLocalStyles = () => {
   useEffect(() => {
@@ -65,12 +67,16 @@ const useLocalStyles = () => {
   }, []);
 };
 
-const STEPS = [
-  { n: 1, label: 'Date', icon: CalendarDays },
-  { n: 2, label: 'Slot', icon: Clock },
-  { n: 3, label: 'Plan Type', icon: CreditCard },
-  { n: 4, label: 'Category', icon: ListChecks },
-  { n: 5, label: 'Confirm', icon: CheckCircle2 },
+const STEPS_HOURLY = [
+  { n: 1, label: 'Date & Slot', icon: CalendarDays },
+  { n: 2, label: 'Category', icon: ListChecks },
+  { n: 3, label: 'Confirm', icon: CheckCircle2 },
+];
+const STEPS_MEMBERSHIP = [
+  { n: 1, label: 'Plan', icon: CreditCard },
+  { n: 2, label: 'Category', icon: ListChecks },
+  { n: 3, label: 'Date & Slot', icon: Clock },
+  { n: 4, label: 'Confirm', icon: CheckCircle2 },
 ];
 const MAX_ADVANCE_DAYS = 7;
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -117,31 +123,34 @@ const loadRazorpayScript = () => new Promise((resolve) => {
   document.body.appendChild(script);
 });
 
-const Stepper = ({ step, onJump }) => (
-  <div className="flex items-center gap-1.5 mb-6">
-    {STEPS.map((s, idx) => {
-      const Icon = s.icon;
-      return (
-        <div key={s.n} className="flex items-center gap-1.5 flex-1">
-          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-            <button
-              type="button"
-              disabled={s.n >= step}
-              onClick={() => onJump(s.n)}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                step > s.n ? 'bg-green-500 text-white cursor-pointer' : step === s.n ? 'bg-green-500/15 text-green-500 border-2 border-green-500' : 'bg-black/5 dark:bg-white/5 text-gray-400 border border-black/10 dark:border-white/10'
-              }`}
-            >
-              {step > s.n ? <CheckCircle2 size={16} strokeWidth={2.5} /> : <Icon size={14} strokeWidth={2.5} />}
-            </button>
-            <span className={`text-[9px] uppercase tracking-wider font-semibold text-center leading-tight ${step >= s.n ? 'text-green-500' : 'text-gray-500'}`}>{s.label}</span>
+const Stepper = ({ step, onJump, steps }) => {
+  const list = steps || STEPS_HOURLY;
+  return (
+    <div className="flex items-center gap-1.5 mb-6">
+      {list.map((s, idx) => {
+        const Icon = s.icon;
+        return (
+          <div key={s.n} className="flex items-center gap-1.5 flex-1">
+            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+              <button
+                type="button"
+                disabled={s.n >= step}
+                onClick={() => onJump(s.n)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  step > s.n ? 'bg-green-500 text-white cursor-pointer' : step === s.n ? 'bg-green-500/15 text-green-500 border-2 border-green-500' : 'bg-black/5 dark:bg-white/5 text-gray-400 border border-black/10 dark:border-white/10'
+                }`}
+              >
+                {step > s.n ? <CheckCircle2 size={16} strokeWidth={2.5} /> : <Icon size={14} strokeWidth={2.5} />}
+              </button>
+              <span className={`text-[9px] uppercase tracking-wider font-semibold text-center leading-tight ${step >= s.n ? 'text-green-500' : 'text-gray-500'}`}>{s.label}</span>
+            </div>
+            {idx < list.length - 1 && <div className={`h-0.5 flex-1 rounded ${step > s.n ? 'bg-green-500' : 'bg-black/10 dark:bg-white/10'}`} />}
           </div>
-          {idx < STEPS.length - 1 && <div className={`h-0.5 flex-1 rounded ${step > s.n ? 'bg-green-500' : 'bg-black/10 dark:bg-white/10'}`} />}
-        </div>
-      );
-    })}
-  </div>
-);
+        );
+      })}
+    </div>
+  );
+};
 
 const StepNav = ({ onBack, onNext, nextLabel, nextDisabled, nextIcon: NextIcon = ChevronRight, showBack = true }) => (
   <div className="pay-row flex items-center justify-between gap-3 mt-6 pt-5 border-t border-black/8 dark:border-white/8">
@@ -202,6 +211,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const [loading, setLoading] = useState(true);
   const [activePoolId, setActivePoolId] = useState(null);
 
+  const [bookingMode, setBookingMode] = useState('hourly'); // 'hourly' | 'membership'
   const [confirmSlot, setConfirmSlot] = useState(null);
   const [chosenSlot, setChosenSlot] = useState(null);
   const [planTypeId, setPlanTypeId] = useState('');
@@ -220,6 +230,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const setParty = (n) => { const c = clampPartyUi(n); setPartySize(c); setPartyInput(String(c)); };
   const [includeRegistration, setIncludeRegistration] = useState(false);
   const [healthConfirmed, setHealthConfirmed] = useState(false);
+  const [rulesConfirmed, setRulesConfirmed] = useState(false);
   const [certUrl, setCertUrl] = useState('');
   const [certUploading, setCertUploading] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -227,6 +238,8 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const [qrPayload, setQrPayload] = useState(null);
   const [availError, setAvailError] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
+  const [showRules, setShowRules] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -261,11 +274,44 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const activePool = availability?.pools?.find((p) => p.poolId === activePoolId) || availability?.pools?.[0];
-  const selectedPlanType = checkoutInfo?.planTypes?.find((p) => p._id === planTypeId);
-  const selectedCategory = selectedPlanType?.categories?.find((c) => c._id === categoryId);
-  const estimatedTotal = selectedCategory ? selectedCategory.price * partySize + (includeRegistration ? checkoutInfo.registrationFee : 0) : 0;
+  // Split planTypes into hourly vs membership for the start-of-form toggle.
+  // Membership = Monthly / Semester / Session Package (filtered by name).
+  const hourlyPlanTypes = useMemo(() => {
+    const all = checkoutInfo?.planTypes || [];
+    return all.filter((pt) => {
+      const n = (pt.name || '').toLowerCase();
+      return !(n.includes('monthly') || n.includes('semester') || n.includes('session') || n.includes('package'));
+    });
+  }, [checkoutInfo]);
+  const membershipPlanTypes = useMemo(() => {
+    const all = checkoutInfo?.planTypes || [];
+    return all.filter((pt) => {
+      const n = (pt.name || '').toLowerCase();
+      return n.includes('monthly') || n.includes('semester') || n.includes('session') || n.includes('package');
+    });
+  }, [checkoutInfo]);
 
+  // Auto-select hourly plan when in hourly mode (membership picks plan via category card)
+  useEffect(() => {
+    if (!checkoutInfo) return;
+    if (bookingMode === 'hourly' && !planTypeId) {
+      const target = hourlyPlanTypes[0] || checkoutInfo.planTypes?.[0];
+      if (target) setPlanTypeId(target._id);
+    }
+    if (bookingMode === 'membership') {
+      // clear stale hourly auto-select when switching to membership
+      const isHourlySelected = hourlyPlanTypes.some((p) => p._id === planTypeId);
+      if (isHourlySelected) {
+        setPlanTypeId('');
+        setCategoryId('');
+      }
+    }
+  }, [checkoutInfo, bookingMode, hourlyPlanTypes, planTypeId]);
+
+  const activePool = availability?.pools?.find((p) => p.poolId === activePoolId) || availability?.pools?.[0];
+  const selectedPlanType = checkoutInfo?.planTypes?.find((p) => p._id === planTypeId) || hourlyPlanTypes[0] || null;
+  const selectedCategory = selectedPlanType?.categories?.find((c) => c._id === categoryId);
+  const estimatedTotal = selectedCategory ? selectedCategory.price * partySize + (includeRegistration ? (checkoutInfo?.registrationFee || 0) : 0) : 0;
   const quickDates = useMemo(() => [addDays(0), addDays(1), addDays(2)], []);
 
   const jumpTo = (n) => { if (n < step) setStep(n); };
@@ -279,14 +325,26 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
       setParty(1);
       setIncludeRegistration(false);
       setHealthConfirmed(false);
-      setStep(3);
+      setRulesConfirmed(false);
+      if (bookingMode === 'hourly') {
+        setCategoryId('');
+        setStep(2);
+      } else {
+        // membership: slot is step 3 → next is confirm (step 4)
+        setStep(4);
+      }
     }
   };
 
-  const handleChoosePlanType = (pt) => {
+  const handleMembershipPlanPick = (pt) => {
     setPlanTypeId(pt._id);
     setCategoryId('');
-    setStep(4);
+    setStep(2);
+  };
+  const handleMembershipCategoryPick = (ptId, catId) => {
+    setPlanTypeId(ptId);
+    setCategoryId(catId);
+    setStep(3);
   };
 
   const handleCertUpload = async (e) => {
@@ -307,7 +365,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   };
 
   const handlePay = async () => {
-    if (!chosenSlot || !planTypeId || !categoryId || !healthConfirmed) return;
+    if (!chosenSlot || !planTypeId || !categoryId || !healthConfirmed || !rulesConfirmed) return;
     // Commit any half-typed swimmer count first so Pay always uses the final value
     const finalParty = clampPartyUi(partyInput);
     setParty(finalParty);
@@ -362,7 +420,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   // Razorpay. The button below only renders when import.meta.env.DEV, so
   // production builds can never show it.
   const handleDummyPay = async () => {
-    if (!chosenSlot || !planTypeId || !categoryId || !healthConfirmed) return;
+    if (!chosenSlot || !planTypeId || !categoryId || !healthConfirmed || !rulesConfirmed) return;
     const finalParty = clampPartyUi(partyInput);
     setParty(finalParty);
     setPaying(true);
@@ -391,6 +449,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
     setCategoryId('');
     setParty(1);
     setHealthConfirmed(false);
+    setRulesConfirmed(false);
   };
 
   useEffect(() => {
@@ -437,16 +496,56 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
     <div className="pbp grid grid-cols-1 lg:grid-cols-3 gap-5">
       {/* Main wizard */}
       <div className="lg:col-span-2 panel p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <Waves className="text-green-500" size={20} />
-          <h3 className="font-bebas text-2xl text-gray-900 dark:text-white tracking-wide">Book a Pool Session</h3>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-2">
+            <Waves className="text-green-500" size={20} />
+            <h3 className="font-bebas text-2xl text-gray-900 dark:text-white tracking-wide">Book a Pool Session</h3>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={() => setShowRules(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15">
+              <ShieldAlert size={12} /> Pool Rules
+            </button>
+            <button onClick={() => setShowGuide(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-green-500/25 bg-green-500/8 text-green-600 hover:bg-green-500/15">
+              <BookOpen size={12} /> Guide
+            </button>
+          </div>
         </div>
-        <p className="text-gray-500 text-sm mb-5">Date, then slot, then how you're paying, then who you are.</p>
+        <p className="text-gray-500 text-sm mb-3">Choose how you want to swim — Hourly or Membership. <button onClick={() => setShowGuide(true)} className="underline decoration-dotted underline-offset-2 hover:text-green-600">New here? See the full guide →</button> <span className="mx-1">·</span> <button onClick={() => setShowRules(true)} className="underline decoration-dotted underline-offset-2 hover:text-amber-600">View pool rules</button></p>
+        <PoolBookingGuide
+          open={showGuide}
+          onClose={() => setShowGuide(false)}
+          hourlyLabel={hourlyPlanTypes[0] ? `${priceRangeLabel(hourlyPlanTypes[0])} ${hourlyPlanTypes[0].billingLabel}` : '₹100–150 per session'}
+          membershipLabel="₹1,000–7,000 per plan"
+        />
+        <PoolRules open={showRules} onClose={() => setShowRules(false)} />
+        {/* Separate booking flows — Hourly vs Membership — differentiated at the very start */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+          <button
+            type="button"
+            onClick={() => { setBookingMode('hourly'); setStep(1); setPlanTypeId(hourlyPlanTypes[0]?._id || ''); setCategoryId(''); setChosenSlot(null); setHealthConfirmed(false); setRulesConfirmed(false); }}
+            className={`text-left rounded-2xl border-2 p-4 transition-all ${bookingMode === 'hourly' ? 'border-green-500 bg-green-500/10' : 'border-black/10 dark:border-white/10 hover:border-green-500/30'}`}
+          >
+            <p className="text-sm font-bold flex items-center gap-2"><Clock size={14} className={bookingMode === 'hourly' ? 'text-green-500' : 'text-gray-400'} /> Hourly</p>
+            <p className="text-xs text-gray-500 mt-1">Pay per session</p>
+            <p className="text-sm font-bold text-green-600 mt-1">{hourlyPlanTypes[0] ? priceRangeLabel(hourlyPlanTypes[0]) : '₹100–150'} <span className="text-[11px] font-normal text-gray-500">{hourlyPlanTypes[0]?.billingLabel || 'per session'}</span></p>
+            <p className="text-[11px] text-gray-500 mt-1">Pick any slot, pay per visit — best for occasional swimmers.</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setBookingMode('membership'); setStep(1); setPlanTypeId(''); setCategoryId(''); setChosenSlot(null); setHealthConfirmed(false); setRulesConfirmed(false); }}
+            className={`text-left rounded-2xl border-2 p-4 transition-all ${bookingMode === 'membership' ? 'border-green-500 bg-green-500/10' : 'border-black/10 dark:border-white/10 hover:border-green-500/30'}`}
+          >
+            <p className="text-sm font-bold flex items-center gap-2"><Waves size={14} className={bookingMode === 'membership' ? 'text-green-500' : 'text-gray-400'} /> Membership</p>
+            <p className="text-xs text-gray-500 mt-1">Monthly · Semester · Session Package</p>
+            <p className="text-sm font-bold text-green-600 mt-1">₹1,000–7,000 <span className="text-[11px] font-normal text-gray-500">per plan</span></p>
+            <p className="text-[11px] text-gray-500 mt-1">One plan covers your period — best for regulars. Opens separate membership flow.</p>
+          </button>
+        </div>
 
-        <Stepper step={step} onJump={jumpTo} />
+        <Stepper step={step} steps={bookingMode === 'hourly' ? STEPS_HOURLY : STEPS_MEMBERSHIP} onJump={jumpTo} />
 
-        {/* Step 1: Date + pool */}
-        {step === 1 && (
+        {/* ── HOURLY FLOW: Date & Slot → Category → Confirm ── */}
+        {bookingMode === 'hourly' && step === 1 && (
           <div>
             {availability?.pools?.length > 1 && (
               <div className="mb-4">
@@ -461,7 +560,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
             <label className="label">Date</label>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {quickDates.map((d) => (
-                <button key={d} onClick={() => { setSelectedDate(d); setShowCalendar(false); }} className={`tab-btn text-center ${selectedDate === d && !showCalendar ? 'tab-active' : 'tab-inactive'}`}>
+                <button key={d} onClick={() => { setSelectedDate(d); setShowCalendar(false); setChosenSlot(null); setCategoryId(''); }} className={`tab-btn text-center ${selectedDate === d && !showCalendar ? 'tab-active' : 'tab-inactive'}`}>
                   {dateLabel(d)}
                 </button>
               ))}
@@ -469,99 +568,61 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
             <button onClick={() => setShowCalendar((v) => !v)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-500 mb-3">
               <CalendarDays size={14} /> {showCalendar ? 'Hide calendar' : 'Or pick a custom date'}
             </button>
-            {showCalendar && <MiniCalendar selected={selectedDate} onSelect={setSelectedDate} />}
-
+            {showCalendar && <MiniCalendar selected={selectedDate} onSelect={(d) => { setSelectedDate(d); setChosenSlot(null); setCategoryId(''); setShowCalendar(false); }} />}
             {!loading && availError && !activePool && (
-              <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3.5 py-3 mt-1 mb-1">
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3.5 py-3 mt-1 mb-4">
                 <AlertTriangle size={15} className="text-red-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-red-600 dark:text-red-400">
-                  Couldn't load pool availability: {availError} — please refresh and try again.
-                </p>
+                <p className="text-xs text-red-600 dark:text-red-400">Couldn't load pool availability: {availError} — please refresh and try again.</p>
               </div>
             )}
-
             {!loading && !availError && !activePool && (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3 mt-1 mb-1">
+              <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3 mt-1 mb-4">
                 <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  This venue doesn't have a bookable pool set up yet — nothing here is active. If you're the owner or admin, check the Pools tab in Schedule and make sure a pool is turned on.
-                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">This venue doesn't have a bookable pool set up yet — nothing here is active.</p>
               </div>
             )}
-
-            <StepNav showBack={false} onNext={() => setStep(2)} nextLabel="Select Slot" nextDisabled={loading || !activePool} />
-          </div>
-        )}
-
-        {/* Step 2: Slot */}
-        {step === 2 && (
-          <div>
-            <p className="text-sm text-gray-500 mb-3 flex items-center gap-1.5"><MapPin size={13} /> {activePool?.name} · {dateLabel(selectedDate)}</p>
-
-            {loading && <p className="text-gray-500 text-sm py-8 text-center">Loading slots…</p>}
-            {!loading && activePool?.slots?.length === 0 && <p className="text-gray-500 text-sm italic py-8 text-center">No sessions scheduled for {dateLabel(selectedDate).toLowerCase()}.</p>}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {activePool?.slots?.map((slot) => {
-                const full = slot.bookedCount >= slot.capacity;
-                const stateClass = slot.expired ? 'expired' : full ? 'full' : '';
-                return (
-                  <div key={slot.startTime} onClick={() => handleSlotClick(slot)} className={`slot-card ${slot.category === 'girls_only' ? 'girls' : 'general'} ${stateClass}`}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-semibold text-sm flex items-center gap-1.5"><Clock size={13} className="text-gray-400" />{fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${slot.category === 'girls_only' ? 'badge-girls' : 'badge-general'}`}>
-                        {slot.category === 'girls_only' ? 'Girls Only' : 'General'}
-                      </span>
-                    </div>
-                    {slot.expired ? (
-                      <span className="badge-expired text-[10px] px-2 py-0.5 rounded-full font-medium inline-block">Expired</span>
-                    ) : (
-                      <p className="text-xs text-gray-500">{full ? 'Fully booked' : `${slot.capacity - slot.bookedCount} spots left of ${slot.capacity}`}</p>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="pt-3 mt-1 border-t border-black/5 dark:border-white/5">
+              <p className="section-title"><Clock size={13} /> Available slots — {dateLabel(selectedDate)} {activePool ? `· ${activePool.name}` : ''}</p>
+              {loading && <p className="text-gray-500 text-sm py-6 text-center">Loading slots…</p>}
+              {!loading && activePool && activePool.slots?.length === 0 && <p className="text-gray-500 text-sm italic py-6 text-center">No sessions scheduled for {dateLabel(selectedDate).toLowerCase()}.</p>}
+              {!loading && activePool && activePool.slots?.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {activePool.slots.map((slot) => {
+                    const full = slot.bookedCount >= slot.capacity;
+                    const stateClass = slot.expired ? 'expired' : full ? 'full' : chosenSlot?.startTime === slot.startTime ? 'chosen' : '';
+                    return (
+                      <div key={slot.startTime} onClick={() => handleSlotClick(slot)} className={`slot-card ${slot.category === 'girls_only' ? 'girls' : 'general'} ${stateClass}`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-semibold text-sm flex items-center gap-1.5"><Clock size={13} className="text-gray-400" />{fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${slot.category === 'girls_only' ? 'badge-girls' : 'badge-general'}`}>{slot.category === 'girls_only' ? 'Girls Only' : 'General'}</span>
+                        </div>
+                        {slot.expired ? <span className="badge-expired text-[10px] px-2 py-0.5 rounded-full font-medium inline-block">Expired</span> : <p className="text-xs text-gray-500">{full ? 'Fully booked' : `${slot.capacity - slot.bookedCount} spots left of ${slot.capacity}`}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {!loading && activePool?.slots?.length > 0 && !chosenSlot && <p className="text-[11px] text-gray-500 text-center mt-3">Tap a slot to choose your category →</p>}
             </div>
-
-            <StepNav onBack={() => setStep(1)} onNext={() => {}} nextLabel="Select a Slot" nextDisabled />
           </div>
         )}
-
-        {/* Step 3: Plan Type — HOW they're paying */}
-        {step === 3 && chosenSlot && !checkoutInfo && (
+        {bookingMode === 'hourly' && step === 2 && !chosenSlot && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3">
+            <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-600 dark:text-amber-400">Pick a date & slot in Step 1 first.</p>
+          </div>
+        )}
+        {bookingMode === 'hourly' && step === 2 && chosenSlot && !selectedPlanType && (
           <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3.5 py-3">
             <AlertTriangle size={15} className="text-red-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-red-600 dark:text-red-400">
-              Couldn't load membership plans{checkoutError ? `: ${checkoutError}` : ''} — please go back and try again, or contact the venue.
-            </p>
+            <p className="text-xs text-red-600 dark:text-red-400">Couldn't load membership plans{checkoutError ? `: ${checkoutError}` : ''} — please go back and try again, or contact the venue.</p>
           </div>
         )}
-        {step === 3 && chosenSlot && checkoutInfo && (
+        {bookingMode === 'hourly' && step === 2 && chosenSlot && selectedPlanType && (
           <div>
-            <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
-              <MapPin size={13} /> {activePool?.name} · {dateLabel(selectedDate)} · {fmtTime(chosenSlot.startTime)}–{fmtTime(chosenSlot.endTime)}
-            </p>
-            <label className="label">Choose your plan</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
-              {checkoutInfo.planTypes.map((pt) => (
-                <div key={pt._id} onClick={() => handleChoosePlanType(pt)} className={`plan-card ${planTypeId === pt._id ? 'chosen' : ''}`}>
-                  <p className="text-sm font-semibold mb-1">{pt.name}</p>
-                  <p className="text-lg font-bold text-green-600">{priceRangeLabel(pt)}</p>
-                  <p className="text-[11px] text-gray-500">{pt.billingLabel}</p>
-                </div>
-              ))}
-              {checkoutInfo.planTypes.length === 0 && <p className="text-gray-500 text-xs italic col-span-2">No plans set up yet — contact the venue.</p>}
-            </div>
-
-            <StepNav onBack={() => setStep(2)} onNext={() => {}} nextLabel="Choose a Plan" nextDisabled />
-          </div>
-        )}
-
-        {/* Step 4: Category — WHO they are, only options valid for the chosen plan type */}
-        {step === 4 && selectedPlanType && (
-          <div>
-            <p className="text-sm text-gray-500 mb-4">{selectedPlanType.name} · {selectedPlanType.billingLabel}</p>
-            <label className="label">Select your category</label>
+            <p className="text-sm text-gray-500 mb-1 flex items-center gap-2"><MapPin size={13} /> {activePool?.name} · {dateLabel(selectedDate)} · {fmtTime(chosenSlot.startTime)}–{fmtTime(chosenSlot.endTime)}</p>
+            <p className="text-xs text-gray-500 mb-4">{selectedPlanType.name} · {selectedPlanType.billingLabel} — pick who you are</p>
+            <label className="label">Select your category — Hourly</label>
             <div className="flex flex-col gap-2 mb-2">
               {selectedPlanType.categories.map((cat) => (
                 <label key={cat._id} className={`plan-card flex items-center gap-3 ${categoryId === cat._id ? 'chosen' : ''}`} style={{ cursor: 'pointer' }}>
@@ -571,13 +632,106 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
                 </label>
               ))}
             </div>
-
-            <StepNav onBack={() => setStep(3)} onNext={() => setStep(5)} nextLabel="Continue" nextDisabled={!categoryId} />
+            <StepNav onBack={() => setStep(1)} onNext={() => setStep(3)} nextLabel="Continue" nextDisabled={!categoryId} />
           </div>
         )}
 
-        {/* Step 5: Confirm — party size, registration, health & safety, pay */}
-        {step === 5 && chosenSlot && selectedCategory && (
+        {/* ── MEMBERSHIP FLOW: Plan → Category → Date & Slot → Confirm ── */}
+        {bookingMode === 'membership' && step === 1 && (
+          <div>
+            <p className="text-sm text-gray-500 mb-3">Membership flow — choose your plan first, then category, then slot. Separate from Hourly for a seamless experience.</p>
+            {!membershipPlanTypes.length ? (
+              <p className="text-gray-500 text-xs italic">No membership plans set up yet — contact the venue.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {membershipPlanTypes.map((pt) => (
+                  <button key={pt._id} onClick={() => handleMembershipPlanPick(pt)} className={`text-left plan-card ${planTypeId === pt._id ? 'chosen' : ''}`}>
+                    <p className="text-sm font-bold">{pt.name}</p>
+                    <p className="text-xs text-gray-500">{pt.billingLabel}</p>
+                    <p className="text-lg font-bold text-green-600 mt-1">{priceRangeLabel(pt)}</p>
+                    <p className="text-[11px] text-gray-500 mt-1">{pt.categories.length} categor{pt.categories.length === 1 ? 'y' : 'ies'}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-500 mt-3">Monthly ₹1,000–2,000 · Semester ₹4,000–5,000 · Session Package ₹6,000–7,000 — pick one to see its categories.</p>
+          </div>
+        )}
+        {bookingMode === 'membership' && step === 2 && !planTypeId && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3">
+            <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-600 dark:text-amber-400">Pick a membership plan in Step 1 first.</p>
+          </div>
+        )}
+        {bookingMode === 'membership' && step === 2 && planTypeId && (
+          <div>
+            <p className="text-sm text-gray-500 mb-4">{selectedPlanType?.name} · {selectedPlanType?.billingLabel} — pick your category</p>
+            <label className="label">Select your category</label>
+            <div className="flex flex-col gap-2 mb-2">
+              {(selectedPlanType?.categories || []).map((cat) => (
+                <label key={cat._id} className={`plan-card flex items-center gap-3 ${categoryId === cat._id ? 'chosen' : ''}`} style={{ cursor: 'pointer' }}>
+                  <input type="radio" name="memCategory" checked={categoryId === cat._id} onChange={() => setCategoryId(cat._id)} />
+                  <span className="text-sm font-semibold">{cat.name}</span>
+                  <span className="text-xs text-gray-500 ml-auto">₹{cat.price} {selectedPlanType.billingLabel}</span>
+                </label>
+              ))}
+            </div>
+            <StepNav onBack={() => setStep(1)} onNext={() => setStep(3)} nextLabel="Continue to Slot" nextDisabled={!categoryId} />
+          </div>
+        )}
+        {bookingMode === 'membership' && step === 3 && (
+          <div>
+            {availability?.pools?.length > 1 && (
+              <div className="mb-4">
+                <label className="label">Pool</label>
+                <div className="flex gap-2">
+                  {availability.pools.map((p) => (
+                    <button key={p.poolId} onClick={() => setActivePoolId(p.poolId)} className={`tab-btn ${activePoolId === p.poolId ? 'tab-active' : 'tab-inactive'}`}>{p.name}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <label className="label">Date</label>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {quickDates.map((d) => (
+                <button key={d} onClick={() => { setSelectedDate(d); setShowCalendar(false); setChosenSlot(null); }} className={`tab-btn text-center ${selectedDate === d && !showCalendar ? 'tab-active' : 'tab-inactive'}`}>
+                  {dateLabel(d)}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowCalendar((v) => !v)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-500 mb-3">
+              <CalendarDays size={14} /> {showCalendar ? 'Hide calendar' : 'Or pick a custom date'}
+            </button>
+            {showCalendar && <MiniCalendar selected={selectedDate} onSelect={(d) => { setSelectedDate(d); setChosenSlot(null); setShowCalendar(false); }} />}
+            <div className="pt-3 mt-1 border-t border-black/5 dark:border-white/5">
+              <p className="section-title"><Clock size={13} /> Available slots — {dateLabel(selectedDate)} {activePool ? `· ${activePool.name}` : ''} <span className="text-[11px] font-normal normal-case tracking-normal text-gray-500">· Membership: {selectedPlanType?.name || '—'} {selectedCategory ? `· ${selectedCategory.name}` : ''}</span></p>
+              {loading && <p className="text-gray-500 text-sm py-6 text-center">Loading slots…</p>}
+              {!loading && activePool && activePool.slots?.length === 0 && <p className="text-gray-500 text-sm italic py-6 text-center">No sessions scheduled for {dateLabel(selectedDate).toLowerCase()}.</p>}
+              {!loading && activePool && activePool.slots?.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {activePool.slots.map((slot) => {
+                    const full = slot.bookedCount >= slot.capacity;
+                    const stateClass = slot.expired ? 'expired' : full ? 'full' : chosenSlot?.startTime === slot.startTime ? 'chosen' : '';
+                    return (
+                      <div key={slot.startTime} onClick={() => handleSlotClick(slot)} className={`slot-card ${slot.category === 'girls_only' ? 'girls' : 'general'} ${stateClass}`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-semibold text-sm flex items-center gap-1.5"><Clock size={13} className="text-gray-400" />{fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${slot.category === 'girls_only' ? 'badge-girls' : 'badge-general'}`}>{slot.category === 'girls_only' ? 'Girls Only' : 'General'}</span>
+                        </div>
+                        {slot.expired ? <span className="badge-expired text-[10px] px-2 py-0.5 rounded-full font-medium inline-block">Expired</span> : <p className="text-xs text-gray-500">{full ? 'Fully booked' : `${slot.capacity - slot.bookedCount} spots left of ${slot.capacity}`}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {!loading && activePool?.slots?.length > 0 && !chosenSlot && <p className="text-[11px] text-gray-500 text-center mt-3">Tap a slot to continue to confirm →</p>}
+            </div>
+            <StepNav onBack={() => setStep(2)} onNext={() => {}} nextLabel="Pick a Slot" nextDisabled />
+          </div>
+        )}
+
+        {/* Confirm — Hourly step 3, Membership step 4 */}
+        {((bookingMode === 'hourly' && step === 3) || (bookingMode === 'membership' && step === 4)) && chosenSlot && selectedCategory && (
           <div>
             <div className="mb-5">
               <label className="label">Number of swimmers (max {checkoutInfo.maxPartySize})</label>
@@ -630,6 +784,15 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
               )}
             </div>
 
+            <div className="mb-5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <p className="section-title"><ShieldAlert size={13} /> Pool Rules</p>
+              <label className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                <input type="checkbox" className="mt-0.5" checked={rulesConfirmed} onChange={(e) => setRulesConfirmed(e.target.checked)} />
+                <span>I have read and agree to the <button type="button" onClick={() => setShowRules(true)} className="underline decoration-dotted underline-offset-2 text-amber-700 dark:text-amber-300 hover:text-amber-600">Pool Rules & Regulations</button> — including ID card, attire/cap, shower, red cap for beginners, no valuables/food/pets/diving, and management/government authority.</span>
+              </label>
+              <button type="button" onClick={() => setShowRules(true)} className="text-[11px] text-amber-700 dark:text-amber-300 underline mt-2 inline-flex items-center gap-1"><Info size={11} /> View full rules</button>
+            </div>
+
             <div className="rounded-xl border border-black/8 dark:border-white/8 p-4 mb-2">
               <div className="summary-row"><span className="text-gray-500 text-sm">Pool</span><span className="font-semibold text-sm">{activePool?.name}</span></div>
               <div className="summary-row"><span className="text-gray-500 text-sm">Date & time</span><span className="font-semibold text-sm">{dateLabel(selectedDate)}, {fmtTime(chosenSlot.startTime)}–{fmtTime(chosenSlot.endTime)}</span></div>
@@ -643,23 +806,23 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
             </div>
 
             <StepNav
-              onBack={() => setStep(4)}
+              onBack={() => setStep(bookingMode === 'hourly' ? 2 : 3)}
               onNext={handlePay}
               nextLabel={paying ? 'Processing…' : `Pay ₹${estimatedTotal}`}
-              nextDisabled={paying || !healthConfirmed}
+              nextDisabled={paying || !healthConfirmed || !rulesConfirmed}
               nextIcon={CreditCard}
             />
+            {(!healthConfirmed || !rulesConfirmed) && <p className="text-[11px] text-amber-500 text-right mt-2">{!healthConfirmed && !rulesConfirmed ? 'Confirm health & agree to pool rules to continue.' : !healthConfirmed ? 'Confirm the health & safety declaration above to continue.' : 'Please agree to pool rules to continue.'}</p>}
             {import.meta.env.DEV && (
               <button
                 onClick={handleDummyPay}
-                disabled={paying || !healthConfirmed}
+                disabled={paying || !healthConfirmed || !rulesConfirmed}
                 className="btn-secondary w-full justify-center mt-3"
                 title="Local testing only — no money moves. Never shown in production builds."
               >
                 🧪 {paying ? 'Booking…' : `Test booking (no payment) · ₹${estimatedTotal}`}
               </button>
             )}
-            {!healthConfirmed && <p className="text-[11px] text-amber-500 text-right mt-2">Confirm the health & safety declaration above to continue.</p>}
           </div>
         )}
       </div>
@@ -698,7 +861,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
             {/* <p className="text-sm text-pink-300 mb-5">If you book this and are found not to be female at the venue, <strong>no refund will be given.</strong></p> */}
             <div className="flex gap-3">
               <button className="btn-secondary flex-1 justify-center" onClick={() => setConfirmSlot(null)}><X size={14} /> Cancel</button>
-              <button className="btn-primary flex-1 justify-center" onClick={() => { setChosenSlot(confirmSlot); setParty(1); setIncludeRegistration(false); setHealthConfirmed(false); setConfirmSlot(null); setStep(3); }}>I understand, continue</button>
+              <button className="btn-primary flex-1 justify-center" onClick={() => { setChosenSlot(confirmSlot); setParty(1); setIncludeRegistration(false); setHealthConfirmed(false); setRulesConfirmed(false); setConfirmSlot(null); setStep(bookingMode === 'hourly' ? 2 : 4); if (bookingMode === 'hourly') setCategoryId(''); }}>I understand, continue</button>
             </div>
           </div>
         </div>

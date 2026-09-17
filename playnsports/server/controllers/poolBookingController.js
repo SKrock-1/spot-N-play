@@ -367,6 +367,12 @@ const getMyPoolQrs = asyncHandler(async (req, res) => {
   res.json(data);
 });
 
+// mask ticket for pool_owner (privacy) — admin still sees full
+const maskTicketId = (tid) => {
+  if (!tid || tid.length < 8) return tid;
+  return tid.slice(0, 4) + '****' + tid.slice(-4);
+};
+
 // ── Owner/admin: live bookings board for one pool venue ─────────────────
 const getPoolOwnerBookings = asyncHandler(async (req, res) => {
   const ground = await Ground.findById(req.params.groundId);
@@ -376,7 +382,16 @@ const getPoolOwnerBookings = asyncHandler(async (req, res) => {
   const bookings = await Booking.find({ ground: ground._id, poolId: { $ne: null } })
     .populate('player', 'name avatar phone email')
     .populate('ground', 'name')
-    .sort({ date: 1, startTime: 1 });
+    .sort({ createdAt: -1 });
+  // pool_owner sees masked ticket; admin sees full — prevents harvesting ticket nos from dashboard
+  if (req.user.role === 'pool_owner') {
+    const masked = bookings.map((b) => {
+      const obj = b.toObject();
+      obj.ticketId = maskTicketId(obj.ticketId);
+      return obj;
+    });
+    return res.json(masked);
+  }
   res.json(bookings);
 });
 
