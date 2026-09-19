@@ -51,11 +51,7 @@ const userIcon = new L.DivIcon({
   iconSize: [24, 24], iconAnchor: [12, 12], className: '',
 });
 
-const GAME_SPORT_EMOJI = {
-  football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾',
-  badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑',
-  'box cricket': '🏏', 'box football': '⚽',
-};
+const GAME_SPORT_EMOJI = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑', kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉', athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴', 'box cricket': '🏏', 'box football': '⚽', esports: '🎮' };
 
 const getGameIcon = (sport) => new L.DivIcon({
   html: `<div style="position:relative;width:40px;height:40px"><div style="position:absolute;inset:0;background:#4ade80;border-radius:50%;animation:pulse-dot 1.4s ease-in-out infinite;opacity:0.35"></div><div style="position:absolute;inset:5px;background:#0d1117;border-radius:50%;border:2px solid #4ade80;box-shadow:0 0 14px rgba(74,222,128,0.7);display:flex;align-items:center;justify-content:center;font-size:16px;">${GAME_SPORT_EMOJI[sport] || '🏅'}</div></div>`,
@@ -560,13 +556,33 @@ const MapSearch = () => {
                 <option value="">All Sports</option>
                 <option value="football">⚽ Football</option>
                 <option value="cricket">🏏 Cricket</option>
-                <option value="box cricket">🏏 Box Cricket</option>
-                <option value="box football">⚽ Box Football</option>
-                <option value="boxing">🥊 Boxing</option>
                 <option value="basketball">🏀 Basketball</option>
                 <option value="tennis">🎾 Tennis</option>
                 <option value="badminton">🏸 Badminton</option>
                 <option value="volleyball">🏐 Volleyball</option>
+                <option value="boxing">🥊 Boxing</option>
+                <option value="hockey">🏑 Hockey</option>
+                <option value="kabaddi">🤼 Kabaddi</option>
+                <option value="kho kho">🏃 Kho Kho</option>
+                <option value="pickleball">🏓 Pickleball</option>
+                <option value="table tennis">🏓 Table Tennis</option>
+                <option value="squash">🎾 Squash</option>
+                <option value="handball">🤾 Handball</option>
+                <option value="futsal">⚽ Futsal</option>
+                <option value="rugby">🏉 Rugby</option>
+                <option value="athletics">🏃 Athletics</option>
+                <option value="wrestling">🤼 Wrestling</option>
+                <option value="weightlifting">🏋️ Weightlifting</option>
+                <option value="yoga">🧘 Yoga</option>
+                <option value="skating">⛸️ Skating</option>
+                <option value="chess">♟️ Chess</option>
+                <option value="carrom">🎯 Carrom</option>
+                <option value="archery">🏹 Archery</option>
+                <option value="shooting">🎯 Shooting</option>
+                <option value="cycling">🚴 Cycling</option>
+                <option value="box cricket">🏏 Box Cricket</option>
+                <option value="box football">⚽ Box Football</option>
+                <option value="esports">🎮 Esports</option>
               </select>
             </div>
 

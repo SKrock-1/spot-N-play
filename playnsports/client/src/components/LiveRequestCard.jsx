@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const SPORT_EMOJI = {
-  football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾',
-  badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑',
+  football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑',
+  kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉',
+  athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴',
   'box cricket': '🏏', 'box football': '⚽',
 };
 

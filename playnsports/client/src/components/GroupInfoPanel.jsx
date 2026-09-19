@@ -122,9 +122,10 @@ const GroupInfoPanel = ({ conv, currentUser, onClose, onMemberRemoved }) => {
   const members = [...new Map((conv?.participants || []).map(p => [p._id?.toString(), p])).values()];
 
   const SPORT_EMOJI = {
-    football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾',
-    badminton: '🏸', volleyball: '🏐', boxing: '🥊',
-    'box cricket': '🏏', 'box football': '⚽',
+    football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑',
+    kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉',
+    athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴',
+    'box cricket': '🏏', 'box football': '⚽', esports: '🎮',
   };
 
   return (

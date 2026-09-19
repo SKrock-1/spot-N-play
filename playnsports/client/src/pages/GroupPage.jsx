@@ -7,11 +7,7 @@ import GroupInviteModal from '../components/GroupInviteModal';
 import { GROUP_STYLES } from '../components/Groupstyles.js';
 
 /* ─── constants ─── */
-const SPORT_EMOJI = {
-  football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾',
-  badminton: '🏸', volleyball: '🏐', boxing: '🥊',
-  'box cricket': '🏏', 'box football': '⚽',
-};
+const SPORT_EMOJI = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑', kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉', athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴', 'box cricket': '🏏', 'box football': '⚽', esports: '🎮' };
 
 const SPORT_BG = {
   football: 'rgba(34,197,94,0.1)', cricket: 'rgba(59,130,246,0.1)',

@@ -6,11 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import EventApprovals from '../components/admin/EventApprovals.jsx';
 import AdminGrowthTools from '../components/admin/AdminGrowthTools.jsx';
 
-const SPORT_EMOJI = {
-  football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾',
-  badminton: '🏸', volleyball: '🏐', boxing: '🥊',
-  'box cricket': '🏏', 'box football': '⚽',
-};
+const SPORT_EMOJI = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑', kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉', athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴', 'box cricket': '🏏', 'box football': '⚽', esports: '🎮' };
 
 const TABS = [
   { id: 'overview',  label: '📊 Overview' },
