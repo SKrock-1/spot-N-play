@@ -312,8 +312,8 @@ const ChatPage = () => {
   const getUnread = (conv) =>
     conv.unreadCount?.get ? conv.unreadCount.get(user._id) || 0 : conv.unreadCount?.[user._id] || 0;
   const getSportEmoji = (sport) => {
-    const map = { football:'⚽', cricket:'🏏', basketball:'🏀', tennis:'🎾', badminton:'🏸', volleyball:'🏐', 'box cricket':'🏏', 'box football':'⚽' };
-    return map[sport] || '🏆';
+    const map = { football:'⚽', cricket:'🏏', basketball:'🏀', tennis:'🎾', badminton:'🏸', volleyball:'🏐', boxing:'🥊', hockey:'🏑', kabaddi:'🤼', Kabbadi:'🤼', 'kho kho':'🏃', pickleball:'🏓', 'table tennis':'🏓', squash:'🎾', handball:'🤾', futsal:'⚽', rugby:'🏉', athletics:'🏃', wrestling:'🤼', weightlifting:'🏋️', yoga:'🧘', skating:'⛸️', chess:'♟️', carrom:'🎯', archery:'🏹', shooting:'🎯', cycling:'🚴', 'box cricket':'🏏', 'box football':'⚽', esports:'🎮' };
+    return map[sport] || map[sport?.toLowerCase?.()] || '🏆';
   };
   const formatTime = (date) =>
     new Date(date).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });

@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const sportEntrySchema = new mongoose.Schema({
   name: {
     type: String,
-    enum: ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'box cricket', 'box football', 'hockey'],
+    enum: ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football', 'esports', 'other'],
     required: true,
     set: v => v ? v.toLowerCase() : v,
   },
@@ -33,7 +33,7 @@ const playerSchema = new mongoose.Schema(
     // ── primary sport for map/availability (kept for backward compat) ──
     sport: {
       type: String,
-      enum: ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'box cricket', 'box football', 'hockey','kabaddi'],
+      enum: ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football', 'esports', 'other'],
       required: true,
       set: v => v ? v.toLowerCase() : v,
     },

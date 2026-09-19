@@ -8,7 +8,10 @@ import { notifyChallengeReceived, notifyChallengeUpdate } from '../services/noti
 // model's sport enum (physical sports — no esports on this flow).
 const CHALLENGE_SPORTS = [
   'football', 'cricket', 'basketball', 'tennis', 'badminton',
-  'volleyball', 'boxing', 'box cricket', 'box football', 'hockey', 'kabaddi',
+  'volleyball', 'boxing', 'hockey', 'kabaddi', 'kho kho', 'pickleball',
+  'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics',
+  'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom',
+  'archery', 'shooting', 'cycling', 'box cricket', 'box football',
 ];
 
 const emitChallengeChange = (payload) => {

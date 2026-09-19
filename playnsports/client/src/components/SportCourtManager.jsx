@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
 
-const SPORT_OPTIONS = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'box cricket', 'box football', 'Kabbadi', 'gym', 'swimming'];
+const SPORT_OPTIONS = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'Kabbadi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football', 'gym', 'swimming', 'esports', 'other'];
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
 const DAYS_AHEAD = 14;
 

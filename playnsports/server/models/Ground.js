@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 
-const SPORT_NAMES = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'box cricket', 'box football', 'Kabbadi', 'gym', 'swimming'];
+const SPORT_NAMES = [
+  'football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey',
+  'kabaddi', 'Kabbadi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby',
+  'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling',
+  'box cricket', 'box football', 'gym', 'swimming', 'esports', 'other',
+];
 
 // A single physical court/pitch/lane belonging to one sport within a venue.
 // Named individually (not just a count) so an owner can label them and take

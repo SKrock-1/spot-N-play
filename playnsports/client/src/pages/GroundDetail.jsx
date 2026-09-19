@@ -495,8 +495,8 @@ const GroundDetail = () => {
   };
 
   const getSportEmoji = (sport) => {
-    const map = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', 'box cricket': '🏏', 'box football': '⚽' };
-    return map[sport] || '🏆';
+    const map = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑', kabaddi: '🤼', Kabbadi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉', athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴', 'box cricket': '🏏', 'box football': '⚽', gym: '🏋️', swimming: '🏊', esports: '🎮' };
+    return map[sport] || map[sport?.toLowerCase?.()] || '🏆';
   };
 
   const getDayLabel = (dateStr) => {
