@@ -123,10 +123,15 @@ const socketHandler = (io) => {
         // Emit to all in room
         io.to(conversationId).emit('new_message', populated);
 
-        // Notify participants not in room (ephemeral toast for active sessions)
+        // Notify participants not in room (ephemeral toast for active sessions) — respects mute
         for (const participantId of conversation.participants) {
           const pid = participantId.toString();
           if (pid !== userId) {
+            // skip mute
+            try {
+              const rec = await User.findById(pid).select('mutedConversations');
+              if (rec?.mutedConversations?.some((id) => String(id) === String(conversationId))) continue;
+            } catch {}
             const participantSocketId = onlineUsers.get(pid);
             if (participantSocketId) {
               io.to(participantSocketId).emit('message_notification', {
@@ -138,7 +143,7 @@ const socketHandler = (io) => {
           }
         }
 
-        // Persist a notification (bell/inbox) for every other participant
+        // Persist a notification (bell/inbox) for every other participant — respects mute via notifyNewMessage guard
         for (const participantId of conversation.participants) {
           const pid = participantId.toString();
           if (pid !== userId) {

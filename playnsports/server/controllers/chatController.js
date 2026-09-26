@@ -4,6 +4,7 @@ import Message from '../models/Message.js';
 import Group from '../models/Group.js';
 import User from '../models/User.js';
 import { getIO } from '../socket/io.js';
+import { notifyChatStarted } from '../services/notificationService.js';
 
 // ── Global Chat ──────────────────────────────────────────────────
 //
@@ -49,6 +50,7 @@ const getOrCreateDirectConversation = asyncHandler(async (req, res) => {
     .populate('participants', 'name avatar role')
     .populate('lastMessage');
 
+  const isNew = !conversation;
   if (!conversation) {
     conversation = await Conversation.create({
       type: 'direct',
@@ -57,6 +59,16 @@ const getOrCreateDirectConversation = asyncHandler(async (req, res) => {
     conversation = await Conversation.findById(conversation._id)
       .populate('participants', 'name avatar role')
       .populate('lastMessage');
+  }
+
+  // Notify recipient that someone started a chat (only on creation, not on re-open)
+  if (isNew) {
+    notifyChatStarted({
+      conversationId: conversation._id,
+      recipientId: userId,
+      senderId: req.user._id,
+      senderName: req.user.name,
+    });
   }
 
   res.json(conversation);

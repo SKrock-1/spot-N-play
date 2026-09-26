@@ -22,7 +22,7 @@ const router = express.Router();
 // can manage ANY pool venue, but which specific venue each request is
 // actually allowed to touch is decided inside the controller (owner-or-admin
 // check per venue), not here.
-const canManage = [protect, authorizeRoles('pool_owner', 'admin')];
+const canManage = [protect, authorizeRoles('pool_owner', 'ground_owner', 'admin')];
 const canBook = [protect, authorizeRoles('player')];
 
 // ── Owner/admin: schedule config ────────────────────────────────────────
@@ -58,8 +58,8 @@ router.get('/:groundId/checkout-info', protect, getPoolPlans);
 router.post('/:groundId/order', ...canBook, createPoolOrder);
 router.post('/:groundId/verify', ...canBook, verifyPoolPayment);
 router.post('/:groundId/dummy-verify', ...canBook, dummyVerifyPoolPayment);
-router.get('/:groundId/bookings', protect, authorizeRoles('pool_owner', 'admin'), getPoolOwnerBookings);
-router.post('/:groundId/bookings/checkin', protect, authorizeRoles('pool_owner', 'admin'), checkinPoolBooking);
+router.get('/:groundId/bookings', protect, authorizeRoles('pool_owner', 'ground_owner', 'admin'), getPoolOwnerBookings);
+router.post('/:groundId/bookings/checkin', protect, authorizeRoles('pool_owner', 'ground_owner', 'admin'), checkinPoolBooking);
 
 // ── Admin only: the "contact admin" cancellation/refund path ───────────
 router.patch('/:groundId/bookings/:bookingId/admin-cancel', protect, authorizeRoles('admin'), adminCancelPoolBooking);

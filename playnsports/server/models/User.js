@@ -50,6 +50,7 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    mutedConversations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Conversation' }],
 
     // ── extended profile fields (all roles) ──
     gender: { type: String, enum: ['male', 'female', 'other', ''], default: '' },

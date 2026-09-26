@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import Navbar from '../components/Navbar';
-
-const SPORTS = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football'];
-const SPORT_EMOJI = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑', kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉', athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴', 'box cricket': '🏏', 'box football': '⚽' };
+import SearchableSportSelect from '../components/SearchableSportSelect';
+import { SPORT_EMOJI } from '../utils/sports';
 
 const CoachesPage = () => {
   const navigate = useNavigate();
@@ -85,16 +84,18 @@ const CoachesPage = () => {
           <p className="text-gray-500 text-sm">Verified professional coaches ready to train you</p>
         </div>
 
-        {/* Sport Filter */}
-        <div className="animate-fadeUp-2 flex flex-wrap gap-2 justify-center mb-10">
-          <button onClick={() => setSelectedSport('')} className={`sport-pill ${!selectedSport ? 'active' : ''}`}>
-            🏆 All Sports
-          </button>
-          {SPORTS.map(s => (
-            <button key={s} onClick={() => setSelectedSport(s)} className={`sport-pill ${selectedSport === s ? 'active' : ''}`}>
-              {SPORT_EMOJI[s]} {s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+        {/* Sport Filter — few visible pills + searchable */}
+        <div className="animate-fadeUp-2 max-w-xl mx-auto mb-10">
+          <SearchableSportSelect
+            value={selectedSport}
+            onChange={setSelectedSport}
+            placeholder="🔍 Search sports… try pickleball, kho kho"
+            includeAll={true}
+            compactPills={true}
+            popularSports={['football','volleyball','basketball']}
+            className="mx-auto"
+          />
+          <p className="text-center text-xs text-gray-500 mt-2">Showing {selectedSport ? SPORT_EMOJI[selectedSport] || '🏅' : '🏆'} <span className="capitalize">{selectedSport || 'All Sports'}</span> · {coaches.length} coach{coaches.length!==1?'es':''}</p>
         </div>
 
         {/* Coaches Grid */}

@@ -43,6 +43,42 @@ export const getBlockedUsers = async (req, res) => {
   }
 };
 
+// Mute conversation — suppress new_message notifications but still deliver messages
+export const muteConversation = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    const convId = req.params.id;
+    if (user.mutedConversations.some((id) => String(id) === String(convId))) {
+      return res.status(400).json({ message: 'Already muted' });
+    }
+    user.mutedConversations.push(convId);
+    await user.save();
+    res.json({ message: 'Conversation muted 🔇' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const unmuteConversation = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    user.mutedConversations = user.mutedConversations.filter((id) => String(id) !== String(req.params.id));
+    await user.save();
+    res.json({ message: 'Conversation unmuted 🔔' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const getMutedConversations = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('mutedConversations');
+    res.json(user.mutedConversations || []);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export const updateMyProfile = asyncHandler(async (req, res) => {
   const { name, phone, hidePhoneNumber, gender, dateOfBirth, city, state, country, bio } = req.body;
   const user = await User.findById(req.user._id);

@@ -19,9 +19,16 @@ import { getIO } from '../socket/io.js';
 
 const clampParty = (n) => Math.max(1, Math.min(Number(n) || 1, MAX_DAILY_HEADCOUNT));
 
+const isPoolVenue = (ground) => {
+  if (!ground) return false;
+  if (ground.venueType === 'pool') return true;
+  if (ground.name && ground.name.toLowerCase().includes('xl arena')) return true;
+  return false;
+};
+
 const loadLiveBookablePool = async (groundId) => {
   const ground = await Ground.findById(groundId);
-  if (!ground || ground.venueType !== 'pool') return { error: { status: 404, message: 'Pool venue not found' } };
+  if (!ground || !isPoolVenue(ground)) return { error: { status: 404, message: 'Pool venue not found' } };
   if (ground.approvalStatus !== 'approved' || ground.venueMode !== 'live') {
     return { error: { status: 403, message: 'This venue is still in its trial phase — booking opens once it goes live' } };
   }

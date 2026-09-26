@@ -76,9 +76,13 @@ const notifyGroupInvite = ({ groupId, groupName, invitedUserId, inviterId, invit
     data: { groupId },
   });
 
-// You received a chat message (direct or group conversation)
-const notifyNewMessage = ({ conversationId, recipientId, senderId, senderName, preview }) =>
-  notify({
+// You received a chat message (direct or group conversation) — respects mute
+const notifyNewMessage = async ({ conversationId, recipientId, senderId, senderName, preview }) => {
+  try {
+    const recipient = await User.findById(recipientId).select('mutedConversations');
+    if (recipient?.mutedConversations?.some((id) => String(id) === String(conversationId))) return null;
+  } catch {}
+  return notify({
     recipient: recipientId,
     actor: senderId,
     type: NOTIFICATION_TYPES.NEW_MESSAGE,
@@ -87,6 +91,24 @@ const notifyNewMessage = ({ conversationId, recipientId, senderId, senderName, p
     link: `/chat/${conversationId}`,
     data: { conversationId },
   });
+};
+
+// Someone started a new direct chat with you (no message yet)
+const notifyChatStarted = async ({ conversationId, recipientId, senderId, senderName }) => {
+  try {
+    const recipient = await User.findById(recipientId).select('mutedConversations');
+    if (recipient?.mutedConversations?.some((id) => String(id) === String(conversationId))) return null;
+  } catch {}
+  return notify({
+    recipient: recipientId,
+    actor: senderId,
+    type: NOTIFICATION_TYPES.NEW_MESSAGE,
+    title: `${senderName} started a chat 💬`,
+    body: 'Open to say hi',
+    link: `/chat/${conversationId}`,
+    data: { conversationId },
+  });
+};
 
 // Admin approved your event
 const notifyEventApproved = ({ eventId, eventTitle, organizerId }) =>
@@ -336,6 +358,7 @@ export {
   getAdminIds,
   notifyGroupInvite,
   notifyNewMessage,
+  notifyChatStarted,
   notifyEventApproved,
   notifyEventRejected,
   notifyCoachApproved,
