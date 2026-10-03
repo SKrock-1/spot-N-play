@@ -19,11 +19,12 @@ import { getIO } from '../socket/io.js';
 
 const clampParty = (n) => Math.max(1, Math.min(Number(n) || 1, MAX_DAILY_HEADCOUNT));
 
+// XL Arena is a turf ground, not a pool — it has its own arena booking
+// flow (XlArenaBookingPanel + /api/xl membership) built on Ground.slots,
+// so the pool engine stays strictly for venueType === 'pool'.
 const isPoolVenue = (ground) => {
   if (!ground) return false;
-  if (ground.venueType === 'pool') return true;
-  if (ground.name && ground.name.toLowerCase().includes('xl arena')) return true;
-  return false;
+  return ground.venueType === 'pool';
 };
 
 const loadLiveBookablePool = async (groundId) => {

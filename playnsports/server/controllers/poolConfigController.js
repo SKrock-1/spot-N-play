@@ -6,12 +6,11 @@ import { getOrCreateConfig } from '../utils/poolBookingEngine.js';
 // route only checks role (pool_owner or admin), and this is the check that
 // decides whether *this particular* venue is theirs to manage. An admin
 // always passes; a pool_owner only passes for venues they own.
+// XL Arena is a turf ground with its own arena booking flow — the pool
+// engine stays strictly for venueType === 'pool'.
 const isPoolVenue = (ground) => {
   if (!ground) return false;
-  if (ground.venueType === 'pool') return true;
-  // XL Arena is a ground venue but uses the same membership/pool booking engine for its ₹990 plan
-  if (ground.name && ground.name.toLowerCase().includes('xl arena')) return true;
-  return false;
+  return ground.venueType === 'pool';
 };
 
 const loadPoolGround = async (groundId, user) => {
