@@ -91,9 +91,9 @@ const declineMateRequest = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error('Request not found');
   }
-  request.status = 'declined';
-  request.respondedAt = new Date();
-  await request.save();
+  // Delete rather than mark declined, so the pair can re-request later
+  // without colliding with the (from,to) unique index.
+  await MateRequest.deleteOne({ _id: request._id });
   res.json({ message: 'Request declined' });
 });
 

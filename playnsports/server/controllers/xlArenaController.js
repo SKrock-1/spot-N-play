@@ -123,6 +123,12 @@ const verifyMembershipPayment = asyncHandler(async (req, res) => {
 // (capacity 1) and players routinely book several CONTINUOUS hourly slots
 // in one go, paying Full now or a ₹500 Token now (rest at the arena).
 
+// ── Payment binding ────────────────────────────────────────────────────
+// Every verify path fetches the order back from Razorpay and checks the
+// amount + identity fields against what we're about to grant. See
+// utils/orderGuard.js for why a signature alone isn't enough.
+import { assertOrderMatches } from '../utils/orderGuard.js';
+
 const TOKEN_AMOUNT = 500;
 const MAX_SLOTS_PER_ORDER = 6;
 const MAX_ADVANCE_DAYS = 30;
@@ -238,7 +244,7 @@ const createArenaOrder = asyncHandler(async (req, res) => {
     notes: {
       groundId: ctx.ground._id.toString(),
       playerId: req.user._id.toString(),
-      slotIds: ctx.slots.map((s) => String(s._id)).join(','),
+      slotIds: ctx.slots.map((s) => String(s._id)).sort().join(','),
       payMode: ctx.payMode,
       type: 'xl_arena',
     },
@@ -256,6 +262,13 @@ const createArenaOrder = asyncHandler(async (req, res) => {
 });
 
 // POST /api/xl/:groundId/arena-verify { razorpay..., slotIds[], payMode }
+// ── Payment binding ────────────────────────────────────────────────────
+// A valid HMAC signature only proves "the user really paid THIS order" —
+// it says nothing about what they're trying to buy with it. Without an
+// explicit binding, a confirmed ₹500 order could be replayed at verify
+// time to claim a ₹1500 booking (price tampering). So every verify path
+// fetches the order back from Razorpay and checks amount + identity
+
 const verifyArenaPayment = asyncHandler(async (req, res) => {
   const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
   const expected = crypto
@@ -273,6 +286,24 @@ const verifyArenaPayment = asyncHandler(async (req, res) => {
     res.status(err.status || 500);
     throw err;
   }
+
+  // Bind the order to exactly this slot set, amount and payMode.
+  const wantedSlotIds = ctx.slots
+    .map((s) => String(s._id))
+    .sort()
+    .join(',');
+  await assertOrderMatches({
+    razorpay: getRazorpay(),
+    orderId: razorpayOrderId,
+    expectedAmount: ctx.payable,
+    playerId: req.user._id,
+    kind: 'xl_arena',
+    match: {
+      groundId: String(ctx.ground._id),
+      slotIds: wantedSlotIds,
+      payMode: ctx.payMode,
+    },
+  });
 
   // Claim every slot; unwind on partial failure (payment already captured —
   // surface it exactly like the single-slot flow does).

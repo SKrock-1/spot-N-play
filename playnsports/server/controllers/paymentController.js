@@ -12,6 +12,7 @@ import { sendEventTicketEmail } from '../utils/sendEmail.js';
 import { claimSlotCapacity, releaseSlotCapacity, priceForSlot, sportForSlot, sanitizeBookingForPlayer } from '../utils/bookingEngine.js';
 import { awardForPayment } from '../services/fitService.js';
 import { getRazorpay } from '../utils/razorpay.js';
+import { assertOrderMatches } from '../utils/orderGuard.js';
 
 // Mirrors the confirmed event ticket into the standalone Ticket collection
 // so the app can show a player's tickets without re-populating the whole
@@ -60,6 +61,12 @@ const sanitizePaymentForPlayer = (paymentDoc) => {
 };
 
 const todayStr = () => new Date().toISOString().split('T')[0];
+
+// ── Payment binding ────────────────────────────────────────────────────
+// Every verify path fetches the order back from Razorpay and checks the
+// amount + identity fields against what we're about to grant. See
+// utils/orderGuard.js for why a signature alone isn't enough.
+
 
 // ── Ground Booking Payments ─────────────────────────────────
 
@@ -148,55 +155,76 @@ const verifyAdvancePayment = asyncHandler(async (req, res) => {
     res.status(400); throw new Error('Payment verification failed');
   }
 
-  // Atomic claim — payment signature already verified above, so this is the
-  // last check before we consider the spot(s) theirs. The capacity check
-  // (bookedCount + partySize <= capacity) happens inside the same update
-  // via $expr, so it's race-safe even when several players are competing
-  // for the last spot in a capacity-based slot (e.g. a pool).
+  const ground = await Ground.findById(req.params.id);
+  if (!ground) { res.status(404); throw new Error('Ground not found'); }
+  const slot = ground.slots.id(slotId);
+  if (!slot) { res.status(404); throw new Error('Slot not found'); }
+  const sportDoc = sportForSlot(ground, slot);
+  if (!sportDoc) { res.status(400); throw new Error('Sport configuration missing for this slot'); }
+  const priceInfo = priceForSlot({ ground, sportDoc, slot, partySize });
+
+  // Bind this order to exactly this slot/amount/player before granting the
+  // booking - a valid signature alone would let a paid cheap order be
+  // replayed at verify time to claim an expensive slot.
+  try {
+    await assertOrderMatches({
+      razorpay: getRazorpay(),
+      orderId: razorpayOrderId,
+      expectedAmount: priceInfo.advanceAmount,
+      playerId: req.user._id,
+      kind: 'advance',
+      match: { groundId: String(ground._id), slotId: String(slotId) },
+    });
+  } catch (err) {
+    res.status(err.status || 400); throw err;
+  }
+
+  // Atomic claim - payment signature + amount already bound above, so this
+  // is the last check before we consider the spot(s) theirs.
   const claimed = await claimSlotCapacity({ groundId: req.params.id, slotId, userId: req.user._id, partySize });
 
   if (!claimed) {
-    // Payment already succeeded on Razorpay's side but the slot is gone —
+    // Payment already succeeded on Razorpay's side but the slot is gone -
     // don't silently eat the money, surface it so the flow can refund.
     res.status(409);
-    throw new Error('This slot was just filled by someone else. Your payment was captured — please contact support for a refund, or use "Cancel & Refund" once the booking briefly appears.');
+    throw new Error('This slot was just filled by someone else. Your payment was captured - please contact support for a refund, or use "Cancel & Refund" once the booking briefly appears.');
   }
 
-  const { ground, slot } = claimed;
-  const sportDoc = sportForSlot(ground, slot);
-  const priceInfo = priceForSlot({ ground, sportDoc, slot, partySize });
+  const { ground: claimedGround, slot: claimedSlot } = claimed;
+  const claimedSportDoc = sportForSlot(claimedGround, claimedSlot);
+  const claimedPriceInfo = priceForSlot({ ground: claimedGround, sportDoc: claimedSportDoc, slot: claimedSlot, partySize });
 
   const booking = await Booking.create({
     player: req.user._id,
-    ground: ground._id,
-    slot: slot._id,
-    sportId: slot.sportId,
-    sportName: sportDoc?.name || '',
-    courtId: slot.courtId,
-    courtName: slot.courtId ? sportDoc?.courts?.id(slot.courtId)?.name || '' : '',
+    ground: claimedGround._id,
+    slot: claimedSlot._id,
+    sportId: claimedSlot.sportId,
+    sportName: claimedSportDoc?.name || '',
+    courtId: claimedSlot.courtId,
+    courtName: claimedSlot.courtId ? claimedSportDoc?.courts?.id(claimedSlot.courtId)?.name || '' : '',
     partySize,
-    date: slot.date,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
-    totalPrice: priceInfo.totalAmount,
-    advancePrice: priceInfo.advanceAmount,
-    remainingPrice: priceInfo.remainingAmount,
-    commissionPercent: priceInfo.commissionPercent,
-    platformCommission: priceInfo.platformCommission,
-    ownerPayout: priceInfo.ownerPayout,
+    date: claimedSlot.date,
+    startTime: claimedSlot.startTime,
+    endTime: claimedSlot.endTime,
+    totalPrice: claimedPriceInfo.totalAmount,
+    advancePrice: claimedPriceInfo.advanceAmount,
+    remainingPrice: claimedPriceInfo.remainingAmount,
+    commissionPercent: claimedPriceInfo.commissionPercent,
+    platformCommission: claimedPriceInfo.platformCommission,
+    ownerPayout: claimedPriceInfo.ownerPayout,
     status: 'advance_paid',
   });
 
   const payment = await Payment.create({
     booking: booking._id,
     player: req.user._id,
-    ground: ground._id,
-    totalAmount: priceInfo.totalAmount,
-    advanceAmount: priceInfo.advanceAmount,
-    remainingAmount: priceInfo.remainingAmount,
-    commissionPercent: priceInfo.commissionPercent,
-    platformCommission: priceInfo.platformCommission,
-    ownerPayout: priceInfo.ownerPayout,
+    ground: claimedGround._id,
+    totalAmount: claimedPriceInfo.totalAmount,
+    advanceAmount: claimedPriceInfo.advanceAmount,
+    remainingAmount: claimedPriceInfo.remainingAmount,
+    commissionPercent: claimedPriceInfo.commissionPercent,
+    platformCommission: claimedPriceInfo.platformCommission,
+    ownerPayout: claimedPriceInfo.ownerPayout,
     advancePayment: { razorpayOrderId, razorpayPaymentId, status: 'paid', paidAt: new Date() },
     finalPayment: { status: 'pending' },
     status: 'advance_paid',
@@ -206,21 +234,21 @@ const verifyAdvancePayment = asyncHandler(async (req, res) => {
   await booking.save();
 
   notifySlotBooked({
-    ownerId: ground.owner,
+    ownerId: claimedGround.owner,
     actorId: req.user._id,
-    groundId: ground._id,
-    groundName: ground.name,
-    date: slot.date,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
+    groundId: claimedGround._id,
+    groundName: claimedGround.name,
+    date: claimedSlot.date,
+    startTime: claimedSlot.startTime,
+    endTime: claimedSlot.endTime,
   });
 
-  // Fitcoin + Fit Points ride every real rupee: 1 ₹ paid = 1 FC = 1 FP.
+  // Fitcoin + Fit Points ride every real rupee: 1 paid unit = 1 FC = 1 FP.
   await awardForPayment({
     userId: req.user._id,
-    amountPaid: priceInfo.advanceAmount,
+    amountPaid: claimedPriceInfo.advanceAmount,
     bookingId: booking._id,
-    note: `Advance — ${sportDoc?.name || 'Ground'} · ${ground.name}`,
+    note: `Advance - ${claimedSportDoc?.name || 'Ground'} · ${claimedGround.name}`,
   });
 
   res.json({ message: 'Advance payment successful ✅', booking: sanitizeBookingForPlayer(booking), payment: sanitizePaymentForPlayer(payment) });
@@ -257,6 +285,23 @@ const verifyFinalPayment = asyncHandler(async (req, res) => {
 
   const booking = await Booking.findById(req.params.id).populate('payment');
   if (!booking) { res.status(404); throw new Error('Booking not found'); }
+  if (String(booking.player) !== String(req.user._id)) {
+    res.status(403); throw new Error('Not authorized for this booking');
+  }
+
+  // Bind the order to this exact booking + remaining amount + owner.
+  try {
+    await assertOrderMatches({
+      razorpay: getRazorpay(),
+      orderId: razorpayOrderId,
+      expectedAmount: booking.remainingPrice,
+      playerId: req.user._id,
+      kind: 'final',
+      match: { bookingId: String(booking._id) },
+    });
+  } catch (err) {
+    res.status(err.status || 400); throw err;
+  }
 
   booking.status = 'completed';
   await booking.save();

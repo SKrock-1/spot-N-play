@@ -12,6 +12,7 @@ import { sendPoolBookingEmail } from '../utils/sendEmail.js';
 import { notifySlotBooked, notifyPoolBookingConfirmed } from '../services/notificationService.js';
 import { signPoolQr, verifyPoolQr } from '../utils/poolQr.js';
 import { awardForPayment } from '../services/fitService.js';
+import { assertOrderMatches } from '../utils/orderGuard.js';
 import {
   todayStr, isWithinBookingWindow, MAX_ADVANCE_DAYS, MAX_DAILY_HEADCOUNT,
   getOrCreateConfig, effectiveBlocksForDate, findEffectiveBlock, claimPoolSlotCapacity, releasePoolSlotCapacity,
@@ -197,6 +198,8 @@ const createPoolOrder = asyncHandler(async (req, res) => {
     notes: {
       groundId: ground._id.toString(), poolId: ctx.pool._id.toString(),
       date: ctx.date, startTime: ctx.startTime, playerId: req.user._id.toString(), type: 'pool_full',
+      partySize: String(ctx.partySize),
+      amount: String(ctx.priceInfo.totalAmount),
     },
   });
 
@@ -223,21 +226,54 @@ const verifyPoolPayment = asyncHandler(async (req, res) => {
   const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body).digest('hex');
   if (expectedSignature !== razorpaySignature) { res.status(400); throw new Error('Payment verification failed'); }
 
-  await finalizePoolBooking(req, res, { razorpayOrderId, razorpayPaymentId, dummy: false });
+  const razorpay = getRazorpay();
+  const { ground, error } = await loadLiveBookablePool(req.params.groundId);
+  if (error) { res.status(error.status); throw new Error(error.message); }
+
+  // Resolve the intended booking first so we know the amount and identity
+  // fields the order is supposed to be bound to.
+  let ctx;
+  try {
+    ctx = await resolveBookingContext(ground, req);
+  } catch (err) {
+    res.status(err.status || 400); throw err;
+  }
+  try {
+    await assertOrderMatches({
+      razorpay,
+      orderId: razorpayOrderId,
+      expectedAmount: ctx.priceInfo.totalAmount,
+      playerId: req.user._id,
+      kind: 'pool_full',
+      match: {
+        groundId: String(ground._id),
+        poolId: String(ctx.pool._id),
+        date: ctx.date,
+        startTime: ctx.startTime,
+        partySize: String(ctx.partySize),
+      },
+    });
+  } catch (err) {
+    res.status(err.status || 400); throw err;
+  }
+
+  await finalizePoolBooking(req, res, { razorpayOrderId, razorpayPaymentId, dummy: false, ctx });
 });
 
 // Shared tail of real + dummy verification: re-resolves the booking context
 // server-side, atomically claims capacity, creates the Booking + Payment,
 // and fires email/notifications. The ONLY difference between callers is how
 // payment authenticity was established — everything downstream is identical.
-const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentId, dummy }) => {
+const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentId, dummy, ctx: preCtx }) => {
   const { medicalCertificateUrl } = req.body;
   const { ground, error } = await loadLiveBookablePool(req.params.groundId);
   if (error) { res.status(error.status); throw new Error(error.message); }
 
   let ctx;
   try {
-    ctx = await resolveBookingContext(ground, req);
+    // A verified payment already resolved the context — reuse it, don't
+    // re-derive (and don't let a stale re-derive refund-warn the user).
+    ctx = preCtx || await resolveBookingContext(ground, req);
   } catch (err) {
     // Payment already succeeded on Razorpay's side but something about the
     // booking is no longer valid (slot removed, daily cap hit meanwhile,

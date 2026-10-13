@@ -13,7 +13,9 @@ const mateRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Guarantees you can only have ONE pending/open request to the same person.
+// Guarantees one OPEN request per pair. Declined rows are deleted rather
+// than marked, otherwise the same two users could never re-request (and
+// the stale 'declined' row would collide with the unique index).
 mateRequestSchema.index({ from: 1, to: 1 }, { unique: true, partialFilterExpression: { status: 'pending' } });
 mateRequestSchema.index({ to: 1, status: 1 });
 
