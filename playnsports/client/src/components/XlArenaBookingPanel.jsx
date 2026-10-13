@@ -113,9 +113,16 @@ const XlArenaBookingPanel = ({ ground, user, showMessage, onBooked }) => {
   const openSlots = useMemo(() => {
     if (!locDoc?.slots) return [];
     const today = todayISO();
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
     return locDoc.slots.filter((s) => {
       if (s.isBooked || (s.bookedCount || 0) >= s.capacity) return false;
       if (s.date < today || s.date > maxISO) return false;
+      // Today's slots whose start has already passed are gone — the server
+      // rejects them, so never offer them in the strip.
+      if (s.date === today) {
+        const [h, m] = s.startTime.split(':').map(Number);
+        if (h * 60 + m <= nowMins) return false;
+      }
       if (game && String(s.sportId) !== String(game._id)) return false;
       if (turf && s.courtId && String(s.courtId) !== String(turf._id)) return false;
       return true;
