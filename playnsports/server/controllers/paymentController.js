@@ -10,6 +10,7 @@ import { notifySlotBooked, notifyEventTicketIssued } from '../services/notificat
 import { generateTicketId } from '../utils/ticket.js';
 import { sendEventTicketEmail } from '../utils/sendEmail.js';
 import { claimSlotCapacity, releaseSlotCapacity, priceForSlot, sportForSlot, sanitizeBookingForPlayer } from '../utils/bookingEngine.js';
+import { awardForPayment } from '../services/fitService.js';
 import { getRazorpay } from '../utils/razorpay.js';
 
 // Mirrors the confirmed event ticket into the standalone Ticket collection
@@ -214,6 +215,14 @@ const verifyAdvancePayment = asyncHandler(async (req, res) => {
     endTime: slot.endTime,
   });
 
+  // Fitcoin + Fit Points ride every real rupee: 1 ₹ paid = 1 FC = 1 FP.
+  await awardForPayment({
+    userId: req.user._id,
+    amountPaid: priceInfo.advanceAmount,
+    bookingId: booking._id,
+    note: `Advance — ${sportDoc?.name || 'Ground'} · ${ground.name}`,
+  });
+
   res.json({ message: 'Advance payment successful ✅', booking: sanitizeBookingForPlayer(booking), payment: sanitizePaymentForPlayer(payment) });
 });
 
@@ -256,6 +265,14 @@ const verifyFinalPayment = asyncHandler(async (req, res) => {
   payment.finalPayment = { razorpayOrderId, razorpayPaymentId, status: 'paid', paidAt: new Date() };
   payment.status = 'completed';
   await payment.save();
+
+  // The remaining 70% is also real money spent — it earns the same rate.
+  await awardForPayment({
+    userId: booking.player,
+    amountPaid: booking.remainingPrice,
+    bookingId: booking._id,
+    note: 'Final payment — booking completed',
+  });
 
   res.json({ message: 'Final payment successful ✅ Booking completed!', booking, payment });
 });

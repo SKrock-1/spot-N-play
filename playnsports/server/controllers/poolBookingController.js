@@ -11,6 +11,7 @@ import { generateTicketId } from '../utils/ticket.js';
 import { sendPoolBookingEmail } from '../utils/sendEmail.js';
 import { notifySlotBooked, notifyPoolBookingConfirmed } from '../services/notificationService.js';
 import { signPoolQr, verifyPoolQr } from '../utils/poolQr.js';
+import { awardForPayment } from '../services/fitService.js';
 import {
   todayStr, isWithinBookingWindow, MAX_ADVANCE_DAYS, MAX_DAILY_HEADCOUNT,
   getOrCreateConfig, effectiveBlocksForDate, findEffectiveBlock, claimPoolSlotCapacity, releasePoolSlotCapacity,
@@ -321,6 +322,12 @@ const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentI
   sendPoolBookingEmail(req.user, ground, booking).catch(() => {});
   notifyPoolBookingConfirmed({ groundId: ground._id, groundName: ground.name, userId: req.user._id, ticketId, date: ctx.date, startTime: ctx.startTime });
   notifySlotBooked({ ownerId: ground.owner, actorId: req.user._id, groundId: ground._id, groundName: ground.name, date: ctx.date, startTime: ctx.startTime, endTime: ctx.block.endTime });
+
+  // Pool bookings are paid in full up front, so the whole amount earns.
+  // Dummy-pay verifies (dev/test) move no money — they must not mint coins.
+  if (!dummy) {
+    await awardForPayment({ userId: req.user._id, amountPaid: ctx.priceInfo.totalAmount, bookingId: booking._id, note: `Pool booking — ${ground.name}` });
+  }
 
   if (dummy) console.log(`[dummy-pay] ${ticketId} ${ground.name} ${ctx.date} ${ctx.startTime} x${ctx.partySize} ₹${ctx.priceInfo.totalAmount} — NO MONEY MOVED`);
 

@@ -12,6 +12,8 @@ import { dataStore } from '../utils/dataStore';
 import { useSocket } from '../context/SocketContext';
 import FindPlayersModal from '../components/FindPlayersModal';
 import LiveRequestCard from '../components/LiveRequestCard';
+import MateButton from '../components/MateButton';
+import SearchableSportSelect from '../components/SearchableSportSelect';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -552,38 +554,7 @@ const MapSearch = () => {
             {/* Sport */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-500 uppercase tracking-wider">Sport</label>
-              <select value={sport} onChange={e => setSport(e.target.value)} className="select-field">
-                <option value="">All Sports</option>
-                <option value="football">⚽ Football</option>
-                <option value="cricket">🏏 Cricket</option>
-                <option value="basketball">🏀 Basketball</option>
-                <option value="tennis">🎾 Tennis</option>
-                <option value="badminton">🏸 Badminton</option>
-                <option value="volleyball">🏐 Volleyball</option>
-                <option value="boxing">🥊 Boxing</option>
-                <option value="hockey">🏑 Hockey</option>
-                <option value="kabaddi">🤼 Kabaddi</option>
-                <option value="kho kho">🏃 Kho Kho</option>
-                <option value="pickleball">🏓 Pickleball</option>
-                <option value="table tennis">🏓 Table Tennis</option>
-                <option value="squash">🎾 Squash</option>
-                <option value="handball">🤾 Handball</option>
-                <option value="futsal">⚽ Futsal</option>
-                <option value="rugby">🏉 Rugby</option>
-                <option value="athletics">🏃 Athletics</option>
-                <option value="wrestling">🤼 Wrestling</option>
-                <option value="weightlifting">🏋️ Weightlifting</option>
-                <option value="yoga">🧘 Yoga</option>
-                <option value="skating">⛸️ Skating</option>
-                <option value="chess">♟️ Chess</option>
-                <option value="carrom">🎯 Carrom</option>
-                <option value="archery">🏹 Archery</option>
-                <option value="shooting">🎯 Shooting</option>
-                <option value="cycling">🚴 Cycling</option>
-                <option value="box cricket">🏏 Box Cricket</option>
-                <option value="box football">⚽ Box Football</option>
-                <option value="esports">🎮 Esports</option>
-              </select>
+              <SearchableSportSelect value={sport} onChange={setSport} includeAll={true} placeholder="Search sports" />
             </div>
 
             {/* Skill level */}
@@ -730,6 +701,7 @@ const MapSearch = () => {
                               return <button key={group._id} onClick={()=>handleInvite(player.user._id,group._id)} disabled={disabled} style={{width:'100%',marginTop:4,background:disabled?'rgba(255,255,255,0.05)':'rgba(74,222,128,0.15)',border:'1px solid rgba(74,222,128,0.3)',color:disabled?'#6b7280':'#4ade80',fontSize:12,fontWeight:600,padding:'6px 10px',borderRadius:8,cursor:disabled?'not-allowed':'pointer'}}>{isMember?'🤝 Already in Group':invited||local==='sent'?'✅ Invited':local==='failed'?'❌ Retry':`+ Invite to ${group.name}`}</button>;
                             })}
                             {user?._id!==player.user?._id && <button onClick={async()=>{try{const{data}=await API.post('/chat/direct',{userId:player.user._id});navigate(`/chat/${data._id}`);}catch{}}} className="invite-btn w-full mt-1" style={{color:'#4ade80',marginTop:6}}>💬 Message</button>}
+                            {user?._id!==player.user?._id && <div className="mt-1"><MateButton userId={player.user?._id} /></div>}
                             <button onClick={()=>navigate(`/users/${player.user?._id}/profile`)} className="invite-btn w-full mt-1" style={{color:'#a78bfa',background:'rgba(167,139,250,0.08)',borderColor:'rgba(167,139,250,0.2)',marginTop:4}}>👤 View Profile</button>
                             <button onClick={()=>handleNavigate(lat,lng)} className="invite-btn w-full mt-1" style={{color:'#3b82f6',background:'rgba(59,130,246,0.08)',borderColor:'rgba(59,130,246,0.2)',marginTop:4}}>{isNavigating?'⏳ Calculating…':'🗺️ Navigate'}</button>
                           </div>

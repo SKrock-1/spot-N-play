@@ -8,6 +8,7 @@ import { getRazorpay } from '../utils/razorpay.js';
 import { claimSlotCapacity, releaseSlotCapacity, splitAmount, sanitizeBookingForPlayer } from '../utils/bookingEngine.js';
 import { generateTicketId } from '../utils/ticket.js';
 import { notifySlotBooked } from '../services/notificationService.js';
+import { awardForPayment } from '../services/fitService.js';
 
 // Arena membership catalogue. Single plan for now (Jaideep: Single
 // Standard ₹990) — extend this array if XL adds more tiers later.
@@ -346,6 +347,15 @@ const verifyArenaPayment = asyncHandler(async (req, res) => {
     date: ctx.date,
     startTime: ctx.slots[0].startTime,
     endTime: ctx.slots[ctx.slots.length - 1].endTime,
+  });
+
+  // Only the money that actually moved earns coins — a token booking
+  // credits ₹500 of coins now and the rest when the balance is paid.
+  await awardForPayment({
+    userId: req.user._id,
+    amountPaid: ctx.payable,
+    bookingId: bookings[0]._id,
+    note: `XL Arena — ${ctx.sportDoc?.name || 'Turf'} · ${ctx.slots.length} slot(s)`,
   });
 
   res.json({

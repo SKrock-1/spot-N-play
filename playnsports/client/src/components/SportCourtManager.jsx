@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
+import SearchableSportSelect from './SearchableSportSelect';
 
 const SPORT_OPTIONS = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'Kabbadi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football', 'gym', 'swimming', 'esports', 'other'];
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
@@ -233,9 +234,7 @@ const SportCourtManager = ({ ground, onRefresh, showMessage }) => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Sport</label>
-                <select className="input-field" value={newSport.name} onChange={e => setNewSport({ ...newSport, name: e.target.value })}>
-                  {SPORT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <SearchableSportSelect className="input-field" value={newSport.name} onChange={s => setNewSport({ ...newSport, name: s })} includeAll={false} placeholder="Search sports" />
               </div>
               {!isPoolVenue && (
                 <div>

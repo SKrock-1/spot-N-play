@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import MapLocationPicker from '../components/MapLocationPicker';
 import SportCourtManager from '../components/SportCourtManager';
 import { dataStore } from '../utils/dataStore';
+import SearchableSportSelect from '../components/SearchableSportSelect';
 
 const GroundOwnerDashboard = () => {
   const { user } = useAuth();
@@ -1002,19 +1003,8 @@ const GroundOwnerDashboard = () => {
                     </div>
                     <div>
                       <label className="label">Sport</label>
-                      <select value={groundForm.sport}
-                        onChange={(e) => setGroundForm({ ...groundForm, sport: e.target.value })}
-                        className="input-field">
-                        <option value="football">⚽ Football</option>
-                        <option value="cricket">🏏 Cricket</option>
-                        <option value="basketball">🏀 Basketball</option>
-                        <option value="tennis">🎾 Tennis</option>
-                        <option value="badminton">🏸 Badminton</option>
-                        <option value="volleyball">🏐 Volleyball</option>
-                        <option value="box cricket">🏏 Box Cricket</option>
-                        <option value="box football">⚽ Box Football</option>
-                      </select>
-                    </div>
+                      <SearchableSportSelect value={groundForm.sport} onChange={s => setGroundForm({ ...groundForm, sport: s })} includeAll={false} placeholder="Search sports" />
+                                          </div>
                     <div>
                       <label className="label">Price per Hour (₹)</label>
                       <input
