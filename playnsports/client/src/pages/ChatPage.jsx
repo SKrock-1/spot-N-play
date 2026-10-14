@@ -23,8 +23,6 @@ const ChatPage = () => {
   const [blockedByThem, setBlockedByThem] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mutedConversations, setMutedConversations] = useState(new Set());
-  const [muteLoading, setMuteLoading] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
 
   // ── NEW: per-message delete menu ──
@@ -147,16 +145,6 @@ const ChatPage = () => {
   useEffect(() => { fetchConversations(); }, []);
 
   useEffect(() => {
-    const fetchMuted = async () => {
-      try {
-        const { data } = await API.get('/users/muted');
-        setMutedConversations(new Set((data || []).map((id) => String(id))));
-      } catch {}
-    };
-    fetchMuted();
-  }, []);
-
-  useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
       if (msgMenuRef.current && !msgMenuRef.current.contains(e.target)) setActiveMsgMenu(null);
@@ -261,22 +249,6 @@ const ChatPage = () => {
     try { await API.post(`/users/unblock/${other._id}`); setIsBlocked(false); }
     catch { alert('Failed'); }
     setBlockLoading(false);
-  };
-
-  const isMuted = activeConv ? mutedConversations.has(String(activeConv._id)) : false;
-  const handleMute = async () => {
-    if (!activeConv) return;
-    setMuteLoading(true);
-    try { await API.post(`/users/mute/${activeConv._id}`); setMutedConversations((prev) => new Set([...prev, String(activeConv._id)])); setMenuOpen(false); }
-    catch { alert('Failed to mute'); }
-    setMuteLoading(false);
-  };
-  const handleUnmute = async () => {
-    if (!activeConv) return;
-    setMuteLoading(true);
-    try { await API.post(`/users/unmute/${activeConv._id}`); setMutedConversations((prev) => { const n = new Set(prev); n.delete(String(activeConv._id)); return n; }); }
-    catch { alert('Failed to unmute'); }
-    setMuteLoading(false);
   };
 
   const handleSend = () => {
@@ -451,8 +423,8 @@ const ChatPage = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className={`text-sm font-semibold truncate flex items-center gap-1 ${isActive ? 'text-green-400' : 'text-gray-900 dark:text-white'}`}>
-                              {getConvName(conv)} {mutedConversations.has(String(conv._id)) && <span title="Muted">🔇</span>}
+                            <p className={`text-sm font-semibold truncate ${isActive ? 'text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                              {getConvName(conv)}
                             </p>
                             {conv.lastMessageAt && <span className="text-gray-700 text-xs flex-shrink-0">{formatTime(conv.lastMessageAt)}</span>}
                           </div>
@@ -559,10 +531,6 @@ const ChatPage = () => {
                       >⋮</button>
                       {menuOpen && (
                         <div className="chat-menu">
-                          <button onClick={isMuted ? handleUnmute : handleMute} disabled={muteLoading}
-                            style={{ color: isMuted ? '#fbbf24' : '#9ca3af' }}>
-                            {muteLoading ? '⏳ Loading...' : isMuted ? '🔔 Unmute' : '🔇 Mute'}
-                          </button>
                           <button onClick={isBlocked ? handleUnblock : handleBlock} disabled={blockLoading}
                             style={{ color: isBlocked ? '#4ade80' : '#f87171' }}>
                             {blockLoading ? '⏳ Loading...' : isBlocked ? '✅ Unblock' : '🚫 Block'}
@@ -571,12 +539,6 @@ const ChatPage = () => {
                       )}
                     </div>
                   )}
-                  {/* Quick mute toggle — visible for all chats, not just direct */}
-                  <button onClick={isMuted ? handleUnmute : handleMute} disabled={muteLoading}
-                    title={isMuted ? 'Unmute chat' : 'Mute chat'}
-                    style={{ padding:'6px 10px', borderRadius:'10px', background: isMuted ? 'rgba(251,191,36,0.12)' : 'rgba(255,255,255,0.04)', border: isMuted ? '1px solid rgba(251,191,36,0.25)' : '1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontSize:'14px', color: isMuted ? '#fbbf24' : '#9ca3af' }}>
-                    {isMuted ? '🔇' : '🔔'}
-                  </button>
                 </div>
 
                 {/* Messages */}

@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import GroupInviteModal from '../components/GroupInviteModal';
 import { GROUP_STYLES } from '../components/Groupstyles.js';
-import SearchableSportSelect from '../components/SearchableSportSelect';
 
 /* ─── constants ─── */
 const SPORT_EMOJI = { football: '⚽', cricket: '🏏', basketball: '🏀', tennis: '🎾', badminton: '🏸', volleyball: '🏐', boxing: '🥊', hockey: '🏑', kabaddi: '🤼', 'kho kho': '🏃', pickleball: '🏓', 'table tennis': '🏓', squash: '🎾', handball: '🤾', futsal: '⚽', rugby: '🏉', athletics: '🏃', wrestling: '🤼', weightlifting: '🏋️', yoga: '🧘', skating: '⛸️', chess: '♟️', carrom: '🎯', archery: '🏹', shooting: '🎯', cycling: '🚴', 'box cricket': '🏏', 'box football': '⚽', esports: '🎮' };
@@ -387,7 +386,11 @@ const GroupPage = () => {
               </div>
               <div>
                 <label className="g-label">Sport</label>
-                <SearchableSportSelect value={form.sport} onChange={s => setForm(f => ({ ...f, sport: s }))} includeAll={false} placeholder="Search sports" />
+                <select value={form.sport} onChange={e => setForm(f => ({ ...f, sport: e.target.value }))} className="g-input">
+                  {Object.entries(SPORT_EMOJI).map(([val, emoji]) => (
+                    <option key={val} value={val}>{emoji} {val.charAt(0).toUpperCase() + val.slice(1)}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="g-label">Max Members</label>

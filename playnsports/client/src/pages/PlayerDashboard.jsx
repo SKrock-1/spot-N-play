@@ -9,7 +9,6 @@ import FindPlayersModal from '../components/FindPlayersModal';
 import LiveRequestCard from '../components/LiveRequestCard';
 import MyChallenges from '../components/challenge/MyChallenges';
 import PoolQr from '../components/PoolQr';
-import SearchableSportSelect from '../components/SearchableSportSelect';
 
 const PlayerDashboard = () => {
   const { user } = useAuth();
@@ -578,7 +577,37 @@ const PlayerDashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="label">Sport</label>
-                      <SearchableSportSelect data-tour="dash-sport" value={form.sport} onChange={s => setForm({ ...form, sport: s })} includeAll={false} placeholder="Search sports" />
+                      <select data-tour="dash-sport" value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className="input-field">
+                        <option value="football">⚽ Football</option>
+                        <option value="cricket">🏏 Cricket</option>
+                        <option value="basketball">🏀 Basketball</option>
+                        <option value="tennis">🎾 Tennis</option>
+                        <option value="badminton">🏸 Badminton</option>
+                        <option value="volleyball">🏐 Volleyball</option>
+                        <option value="boxing">🥊 Boxing</option>
+                        <option value="hockey">🏑 Hockey</option>
+                        <option value="kabaddi">🤼 Kabaddi</option>
+                        <option value="kho kho">🏃 Kho Kho</option>
+                        <option value="pickleball">🏓 Pickleball</option>
+                        <option value="table tennis">🏓 Table Tennis</option>
+                        <option value="squash">🎾 Squash</option>
+                        <option value="handball">🤾 Handball</option>
+                        <option value="futsal">⚽ Futsal</option>
+                        <option value="rugby">🏉 Rugby</option>
+                        <option value="athletics">🏃 Athletics</option>
+                        <option value="wrestling">🤼 Wrestling</option>
+                        <option value="weightlifting">🏋️ Weightlifting</option>
+                        <option value="yoga">🧘 Yoga</option>
+                        <option value="skating">⛸️ Skating</option>
+                        <option value="chess">♟️ Chess</option>
+                        <option value="carrom">🎯 Carrom</option>
+                        <option value="archery">🏹 Archery</option>
+                        <option value="shooting">🎯 Shooting</option>
+                        <option value="cycling">🚴 Cycling</option>
+                        <option value="box cricket">🏏 Box Cricket</option>
+                        <option value="box football">⚽ Box Football</option>
+                        <option value="esports">🎮 Esports</option>
+                      </select>
                     </div>
                     <div>
                       <label className="label">Skill Level</label>
