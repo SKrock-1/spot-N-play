@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
 import Navbar from '../components/Navbar';
+import InviteShareButtons from '../components/InviteShareButtons';
+import { useAuth } from '../context/AuthContext';
 
 // Wallet — Fitcoin balance, Fit Points score, and the Invite & Earn panel.
 // 1 unit of currency = 1 Fitcoin (₹1 = 1 FC). Fit Points ride along 1:1 for
@@ -67,9 +69,7 @@ const WalletPage = () => {
     }
   };
 
-  const shareText = encodeURIComponent(
-    `Join me on PLAY N SPORTS! Use my invite code ${invite?.referralCode || ''} and get ${invite?.rules?.signupBonus || 20} Fitcoin when you sign up. ${invite?.inviteLink || ''}`
-  );
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] dark:bg-[#060606] text-gray-900 dark:text-white" style={{ fontFamily: 'DM Sans, sans-serif' }}>
@@ -143,17 +143,15 @@ const WalletPage = () => {
                 </code>
                 <button onClick={() => copy(invite?.referralCode || '', 'Invite code')} className="bg-black/5 dark:bg-white/10 rounded-xl px-4 py-3 text-sm font-bold hover:bg-black/10">Copy</button>
               </div>
-              <button onClick={() => copy(invite?.inviteLink || '', 'Invite link')} className="w-full mt-2 border border-black/10 dark:border-white/10 rounded-xl py-3 text-sm font-bold hover:border-green-400/40">
-                🔗 Copy invite link
-              </button>
-              <a
-                href={`https://wa.me/?text=${shareText}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full mt-2 text-center bg-green-400 hover:bg-green-300 text-black font-bold py-3 rounded-xl"
-              >
-                Share on WhatsApp
-              </a>
+              <div className="mt-3">
+                <InviteShareButtons
+                  code={invite?.referralCode || ''}
+                  link={invite?.inviteLink || ''}
+                  inviterName={user?.name}
+                  signupBonus={invite?.rules?.signupBonus || 20}
+                  onShared={() => flash('Invite shared 🎁')}
+                />
+              </div>
               <div className="flex gap-4 mt-4 text-center">
                 <div className="flex-1 bg-black/5 dark:bg-white/5 rounded-xl py-3">
                   <p className="font-bebas text-3xl">{invite?.invitedCount ?? 0}</p>

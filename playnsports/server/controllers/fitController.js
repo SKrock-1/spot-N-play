@@ -77,9 +77,13 @@ const getInviteInfo = asyncHandler(async (req, res) => {
     { $match: { user: req.user._id, type: { $in: ['earn_invite_booking'] } } },
     { $group: { _id: null, fitcoin: { $sum: '$fitcoin' }, count: { $sum: 1 } } },
   ]);
+  // The link a friend taps: must be the REAL signup route (/register —
+  // there is no /signup route) on the configured frontend origin.
+  const origin = (process.env.CLIENT_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  const inviteLink = `${origin}/register?ref=${code}`;
   res.json({
     referralCode: code,
-    inviteLink: `${process.env.CLIENT_URL || 'https://playnsports.co'}/signup?ref=${code}`,
+    inviteLink,
     rules: {
       signupBonus: INVITE_SIGNUP_FITCOIN,
       firstBookingBonus: INVITE_FIRSTBOOKING_FITCOIN,
