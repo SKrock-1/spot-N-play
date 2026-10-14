@@ -5,6 +5,7 @@ import API from '../api/axios';
 import Navbar from '../components/Navbar';
 import StreakCalendar from "../components/StreakCalendar";
 import SearchableSportSelect from '../components/SearchableSportSelect';
+import { buildInviteText } from '../components/InviteShareButtons';
 import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
@@ -327,13 +328,14 @@ const ProfilePage = () => {
   const [loading,     setLoading]     = useState(false);
   const [avatarFile,  setAvatarFile]  = useState(null);
   const [avatarPrev,  setAvatarPrev]  = useState(user?.avatar || null);
-  // Invite & Earn — the sidebar card shows the player's own share code.
+  // Invite & Earn — the sidebar card shows the player's own share code + link.
   const [inviteCode, setInviteCode] = useState('');
+  const [inviteLink, setInviteLink] = useState('');
 
   useEffect(() => {
     if (role !== 'player') return;
     let live = true;
-    API.get('/users/fit/invite').then(({ data }) => { if (live) setInviteCode(data.referralCode || ''); }).catch(() => {});
+    API.get('/users/fit/invite').then(({ data }) => { if (live) { setInviteCode(data.referralCode || ''); setInviteLink(data.inviteLink || ''); } }).catch(() => {});
     return () => { live = false; };
   }, [role]);
 
@@ -1166,10 +1168,14 @@ const ProfilePage = () => {
                     {inviteCode || '···'}
                   </code>
                   <button
-                    onClick={() => inviteCode && navigator.clipboard?.writeText(inviteCode).then(() => { setMessage('Invite code copied 🎁'); setMsgType('success'); }).catch(() => {})}
+                    onClick={() => {
+                      if (!inviteCode) return;
+                      const text = buildInviteText({ code: inviteCode, link: inviteLink || inviteCode, inviterName: user?.name });
+                      navigator.clipboard?.writeText(text).then(() => { setMessage('Invite copied — share it on WhatsApp 🎁'); setMsgType('success'); }).catch(() => {});
+                    }}
                     className="text-xs font-bold px-3 py-2 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10"
                   >
-                    Copy
+                    Copy invite
                   </button>
                 </div>
                 <Link to="/wallet" className="block text-center text-xs text-yellow-500 font-bold mt-2 hover:underline">Open Invite & Earn →</Link>

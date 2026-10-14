@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { dataStore } from '../utils/dataStore';
+import { buildInviteText } from '../components/InviteShareButtons';
 import { useSocket } from '../context/SocketContext';
 import FindPlayersModal from '../components/FindPlayersModal';
 import LiveRequestCard from '../components/LiveRequestCard';
@@ -46,10 +47,16 @@ const PlayerDashboard = () => {
           fitcoin: w.data?.fitcoin || 0,
           fitPoints: w.data?.fitPoints || 0,
           referralCode: w.data?.referralCode || '',
+          inviteLink: '',
           rank: lb.data?.me?.rank ?? null,
           mates: (m.data?.mates || []).length,
           matesPending: (m.data?.incoming || []).length,
         });
+        // Invite link lives on the invite endpoint — one extra cheap call.
+        API.get('/users/fit/invite').then(({ data }) => {
+          if (!live) return;
+          setRewards((prev) => prev ? { ...prev, referralCode: data.referralCode || prev.referralCode, inviteLink: data.inviteLink || '' } : prev);
+        }).catch(() => {});
       } catch { /* rewards strip stays hidden on failure */ }
     })();
     return () => { live = false; };
@@ -544,10 +551,9 @@ const PlayerDashboard = () => {
               </Link>
               <button
                 onClick={() => {
-                  const code = rewards.referralCode || '';
-                  const text = `Join me on PLAY N SPORTS! Use my invite code ${code} and get 20 Fitcoin on signup.`;
-                  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showMessage('Invite text copied — share it anywhere 🎁')).catch(() => showMessage(`Your code: ${code}`, 'success'));
-                  else showMessage(`Your code: ${code}`, 'success');
+                  const text = buildInviteText({ code: rewards.referralCode || '', link: rewards.inviteLink || '', inviterName: user?.name });
+                  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showMessage('Invite link copied — share it on WhatsApp 🎁')).catch(() => showMessage(`Your code: ${rewards.referralCode}`, 'success'));
+                  else showMessage(`Your code: ${rewards.referralCode}`, 'success');
                 }}
                 className="flex items-center gap-3 text-left group"
               >
