@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import SpotNPlayLogo from '../components/SpotNPlayLogo';
@@ -18,6 +18,10 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState('');
+  // Invite & Earn: a shared link lands here as /register?ref=XLXXXXXX.
+  // The code rides the signup payload so the welcome bonus applies.
+  const [searchParams] = useSearchParams();
+  const inviteCode = (searchParams.get('ref') || '').trim().toUpperCase();
   const { login, updateUser } = useAuth();
   const navigate = useNavigate();
 
@@ -140,6 +144,7 @@ const Register = () => {
       try {
         const { data } = await API.post('/auth/register', {
           name: form.name, email: form.email, phone: form.phone, password: form.password,
+          ...(inviteCode ? { referralCode: inviteCode } : {}),
         });
         login({ _id: data._id, name: data.name, email: data.email, role: data.role, phone: data.phone, avatar: data.avatar || '', isEmailVerified: data.isEmailVerified, isPhoneVerified: data.isPhoneVerified }, data.token);
         localStorage.setItem('spotnplay_new_signup', '1');
@@ -174,6 +179,7 @@ const Register = () => {
     try {
       const { data } = await API.post('/otp/verify', {
         email: form.email, otp, name: form.name, phone: form.phone, password: form.password,
+        ...(inviteCode ? { referralCode: inviteCode } : {}),
       });
       login({ _id: data._id, name: data.name, email: data.email, role: data.role, phone: data.phone, avatar: data.avatar || '', isEmailVerified: data.isEmailVerified, isPhoneVerified: data.isPhoneVerified }, data.token);
       localStorage.setItem('spotnplay_new_signup', '1');
@@ -268,6 +274,17 @@ const Register = () => {
           {error && (
             <div className="animate-slideIn bg-red-400/8 border border-red-400/20 text-red-400 px-4 py-3 rounded-2xl mb-5 text-sm flex items-center gap-2">
               <span>⚠️</span> {error}
+            </div>
+          )}
+
+          {/* Invite & Earn: a friend's link brought them here — say the bonus out loud */}
+          {step === 1 && inviteCode && (
+            <div className="mb-5 rounded-2xl p-4 border flex items-center gap-3" style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.03))', borderColor: 'rgba(251,191,36,0.3)' }}>
+              <span className="text-2xl">🎁</span>
+              <div>
+                <p className="text-sm font-bold">You've been invited!</p>
+                <p className="text-xs text-gray-500">Code <span className="font-mono font-bold text-yellow-500">{inviteCode}</span> applied — 20 Fitcoin lands in your wallet on signup.</p>
+              </div>
             </div>
           )}
 

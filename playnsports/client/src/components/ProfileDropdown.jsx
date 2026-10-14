@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, User, LogOut, ChevronRight, Compass } from 'lucide-react';
+import { Bell, User, LogOut, ChevronRight, Compass, Wallet, Users, Trophy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications, NOTIFICATION_ICONS } from '../context/NotificationContext';
 import { useTour } from '../context/TourContext';
+import API from '../api/axios';
 
 const timeAgo = (dateString) => {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -25,8 +26,25 @@ const ProfileDropdown = ({ compact = false }) => {
   const { startTour } = useTour();
   const [open, setOpen] = useState(false);
   const [notifExpanded, setNotifExpanded] = useState(false);
+  // Wallet balance + pending mate requests — fetched lazily when the menu
+  // opens so the "my stuff" rows always show fresh numbers.
+  const [fitcoin, setFitcoin] = useState(null);
+  const [matesPending, setMatesPending] = useState(0);
+  const [matesCount, setMatesCount] = useState(0);
   const wrapperRef = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!open || !user) return;
+    let live = true;
+    API.get('/users/fit/wallet').then(({ data }) => { if (live) setFitcoin(data.fitcoin || 0); }).catch(() => {});
+    API.get('/mates').then(({ data }) => {
+      if (!live) return;
+      setMatesPending((data.incoming || []).length);
+      setMatesCount((data.mates || []).length);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [open, user]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -177,6 +195,45 @@ const ProfileDropdown = ({ compact = false }) => {
               <User size={14} />
             </span>
             My Profile
+          </button>
+
+          {/* Wallet — live Fitcoin balance */}
+          <button
+            onClick={() => { closeAll(); navigate('/wallet'); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer focus:outline-none border-t border-black/5 dark:border-white/5"
+          >
+            <span className="w-7 h-7 rounded-lg bg-yellow-400/15 border border-yellow-400/20 flex items-center justify-center text-yellow-500 flex-shrink-0">
+              <Wallet size={14} />
+            </span>
+            <span className="flex-1 text-left">Wallet</span>
+            <span className="text-xs font-bold text-yellow-500">🪙 {fitcoin === null ? '···' : Number(fitcoin).toLocaleString('en-IN')}</span>
+          </button>
+
+          {/* Mates — pending requests get a badge so invites are never missed */}
+          <button
+            onClick={() => { closeAll(); navigate('/mates'); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer focus:outline-none border-t border-black/5 dark:border-white/5"
+          >
+            <span className="w-7 h-7 rounded-lg bg-green-400/15 border border-green-400/20 flex items-center justify-center text-green-600 dark:text-green-400 flex-shrink-0">
+              <Users size={14} />
+            </span>
+            <span className="flex-1 text-left">Mates{matesCount > 0 ? ` (${matesCount})` : ''}</span>
+            {matesPending > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-green-400 text-black text-[10px] font-bold flex items-center justify-center">
+                {matesPending > 9 ? '9+' : matesPending}
+              </span>
+            )}
+          </button>
+
+          {/* Leaderboard */}
+          <button
+            onClick={() => { closeAll(); navigate('/leaderboard'); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer focus:outline-none border-t border-black/5 dark:border-white/5"
+          >
+            <span className="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-center text-gray-600 dark:text-gray-300 flex-shrink-0">
+              <Trophy size={14} />
+            </span>
+            Leaderboard
           </button>
 
           {/* Start Guide — walks through go-live, map, groups & events */}

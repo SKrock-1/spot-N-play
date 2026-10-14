@@ -60,6 +60,28 @@ const LeaderboardPage = () => {
           </div>
         )}
 
+        {/* Podium — top 3 get the stage, everyone else the table */}
+        {!loading && (data?.rows || []).length >= 3 && (
+          <div className="mt-6 grid grid-cols-3 gap-3 items-end">
+            {[data.rows[1], data.rows[0], data.rows[2]].map((r, i) => {
+              const place = [2, 1, 3][i];
+              return (
+                <div
+                  key={r._id}
+                  className={`rounded-2xl border text-center px-2 pb-4 ${place === 1 ? 'pt-6 border-yellow-400/40 bg-yellow-400/5' : 'pt-4 border-black/10 dark:border-white/10'}`}
+                >
+                  <div className={`mx-auto rounded-full bg-green-400/20 flex items-center justify-center font-bold overflow-hidden ${place === 1 ? 'w-16 h-16 text-2xl' : 'w-12 h-12 text-lg'}`}>
+                    {r.avatar ? <img src={r.avatar} alt="" className="w-full h-full object-cover" /> : (r.name || '?')[0]}
+                  </div>
+                  <p className="text-2xl mt-1">{medal(place)}</p>
+                  <p className="font-bold text-sm truncate mt-1">{r.name}</p>
+                  <p className={`font-bebas text-xl ${place === 1 ? 'text-yellow-500' : 'text-green-400'}`}>{Number(r.fitPoints || 0).toLocaleString('en-IN')}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Table */}
         <div className="glass-card mt-5">
           {loading ? (

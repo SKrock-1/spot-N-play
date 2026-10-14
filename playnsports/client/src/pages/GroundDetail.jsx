@@ -396,14 +396,16 @@ const GroundDetail = () => {
         order_id: data.orderId,
         handler: async (response) => {
           try {
-            await API.post(`/payments/grounds/${id}/verify-advance`, {
+            const { data: done } = await API.post(`/payments/grounds/${id}/verify-advance`, {
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
               slotId: selectedSlot._id,
               partySize,
             });
-            showMessage('Advance payment successful! Slot booked ✅');
+            showMessage(done?.earned?.fitcoin > 0
+              ? `Advance paid — slot booked ✅ +${Number(done.earned.fitcoin).toLocaleString('en-IN')} Fitcoin!`
+              : 'Advance payment successful! Slot booked ✅');
             setSelectedSlot(null);
             setPartySize(1);
             setWizardStep(1);
