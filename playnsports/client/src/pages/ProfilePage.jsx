@@ -327,6 +327,15 @@ const ProfilePage = () => {
   const [loading,     setLoading]     = useState(false);
   const [avatarFile,  setAvatarFile]  = useState(null);
   const [avatarPrev,  setAvatarPrev]  = useState(user?.avatar || null);
+  // Invite & Earn — the sidebar card shows the player's own share code.
+  const [inviteCode, setInviteCode] = useState('');
+
+  useEffect(() => {
+    if (role !== 'player') return;
+    let live = true;
+    API.get('/users/fit/invite').then(({ data }) => { if (live) setInviteCode(data.referralCode || ''); }).catch(() => {});
+    return () => { live = false; };
+  }, [role]);
 
   /* ── basic info form ── */
   const [basicForm, setBasicForm] = useState({
@@ -1144,6 +1153,26 @@ const ProfilePage = () => {
                     Save Socials
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Invite friends (player) — identity-adjacent, always visible */}
+            {role === 'player' && (
+              <div className="anim-3 card" style={{ borderColor: 'rgba(251,191,36,0.25)' }}>
+                <h3 className="font-bebas text-lg tracking-wide text-gray-900 dark:text-white mb-1">🎁 INVITE FRIENDS</h3>
+                <p className="text-xs text-gray-500 mb-3">They get 20 Fitcoin · you get 100 on their first booking.</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-sm font-mono font-bold tracking-widest text-yellow-500 text-center">
+                    {inviteCode || '···'}
+                  </code>
+                  <button
+                    onClick={() => inviteCode && navigator.clipboard?.writeText(inviteCode).then(() => { setMessage('Invite code copied 🎁'); setMsgType('success'); }).catch(() => {})}
+                    className="text-xs font-bold px-3 py-2 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <Link to="/wallet" className="block text-center text-xs text-yellow-500 font-bold mt-2 hover:underline">Open Invite & Earn →</Link>
               </div>
             )}
           </div>

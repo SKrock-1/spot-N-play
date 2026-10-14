@@ -305,6 +305,11 @@ const XlArenaBookingPanel = ({ ground, user, showMessage, onBooked }) => {
         <p className="text-sm text-gray-500 mt-1">Booking Date · {success.bookings?.[0]?.date} · {success.bookings?.map((b) => `${b.startTime}–${b.endTime}`).join(', ')}</p>
         <p className="text-sm mt-2">Tickets: <span className="font-mono font-bold">{success.bookings?.map((b) => b.ticketId).join(', ')}</span></p>
         <p className="text-sm text-gray-500 mt-1">Paid ₹{success.paid}{success.remaining > 0 ? ` · pay ₹${success.remaining} at the arena` : ''}</p>
+        {success.earned?.fitcoin > 0 && (
+          <p className="mt-3 inline-block text-sm font-bold text-yellow-500 bg-yellow-400/10 border border-yellow-400/25 rounded-xl px-4 py-2">
+            🪙 +{Number(success.earned.fitcoin).toLocaleString('en-IN')} Fitcoin earned!
+          </p>
+        )}
         <p className="text-sm text-gray-500 mt-3">Receive your confirmation, visit XL Arena, start your match — equipment available on site. 🏟️</p>
         <button onClick={() => { setSuccess(null); setStep(1); }} className="mt-5 bg-green-400 hover:bg-green-300 text-black text-sm font-bold px-6 py-2.5 rounded-xl">Book Another Slot</button>
       </div>

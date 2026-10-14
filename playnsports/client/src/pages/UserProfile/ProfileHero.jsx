@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../../api/axios';
 import ChallengeModal from '../../components/challenge/ChallengeModal';
+import MateButton from '../../components/MateButton';
 
 const ROLE_LABEL = {
   player: '⚽ Player',
@@ -112,6 +113,7 @@ const ProfileHero = ({ user, playerProfile, isOwnProfile, currentUserId }) => {
           <button onClick={handleMessage} className="up-btn up-btn-primary">
             💬 Message
           </button>
+          {user.role === 'player' && <MateButton userId={user._id} />}
           {user.role === 'player' && (
             challengeSent ? (
               <span className="up-btn up-btn-secondary" style={{ cursor: 'default', opacity: 0.7 }}>

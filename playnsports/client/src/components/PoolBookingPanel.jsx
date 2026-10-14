@@ -236,6 +236,9 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
   const [paying, setPaying] = useState(false);
   const [ticket, setTicket] = useState(null);
   const [qrPayload, setQrPayload] = useState(null);
+  // Fitcoin earned by this booking (from the verify response) — shown once
+  // on the confirmation screen, cleared with the wizard.
+  const [earned, setEarned] = useState(null);
   const [availError, setAvailError] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [showGuide, setShowGuide] = useState(false);
@@ -397,6 +400,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
               medicalCertificateUrl: certUrl,
             });
             setTicket(result.booking);
+            if (result.earned?.fitcoin > 0) setEarned(result.earned);
             showMessage?.('Payment successful — booked');
             fetchAll();
           } catch (err) {
@@ -442,6 +446,7 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
 
   const resetWizard = () => {
     setTicket(null);
+    setEarned(null);
     setQrPayload(null);
     setStep(1);
     setChosenSlot(null);
@@ -477,6 +482,11 @@ const PoolBookingPanel = ({ ground, user, showMessage }) => {
           )}
         </div>
         <p className="text-gray-500 text-xs">{ticket.poolName} · {ticket.date} · {fmtTime(ticket.startTime)}–{fmtTime(ticket.endTime)} · {ticket.partySize} {ticket.partySize === 1 ? 'person' : 'people'}</p>
+        {earned?.fitcoin > 0 && (
+          <p className="mt-3 inline-block text-sm font-bold text-yellow-500 bg-yellow-400/10 border border-yellow-400/25 rounded-xl px-4 py-2">
+            🪙 +{Number(earned.fitcoin).toLocaleString('en-IN')} Fitcoin earned!
+          </p>
+        )}
         <p className="text-[11px] text-gray-500 mt-2">One QR = one entry — screenshot sharing blocked after first scan</p>
         <button className="btn-secondary mt-6" onClick={resetWizard}>Book another slot</button>
       </div>

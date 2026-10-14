@@ -97,7 +97,11 @@ const MatesPage = () => {
             ) : (data.mates || []).length === 0 ? (
               <div className="text-center py-8">
                 <span className="text-4xl">🤝</span>
-                <p className="text-gray-500 text-sm mt-2">No mates yet. Open <b>Chat → Find Players</b> and send a request.</p>
+                <p className="text-gray-500 text-sm mt-2">No mates yet — find players on the map or from chat, open their profile, and send a request.</p>
+                <div className="flex gap-2 justify-center mt-4">
+                  <a href="/map" className="text-xs bg-green-400 text-black rounded-lg px-4 py-2 font-bold">🗺️ Find Players on Map</a>
+                  <a href="/chat" className="text-xs bg-black/5 dark:bg-white/10 rounded-lg px-4 py-2 font-bold">💬 Open Chat</a>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

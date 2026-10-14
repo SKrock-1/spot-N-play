@@ -244,14 +244,14 @@ const verifyAdvancePayment = asyncHandler(async (req, res) => {
   });
 
   // Fitcoin + Fit Points ride every real rupee: 1 paid unit = 1 FC = 1 FP.
-  await awardForPayment({
+  const earned = await awardForPayment({
     userId: req.user._id,
     amountPaid: claimedPriceInfo.advanceAmount,
     bookingId: booking._id,
     note: `Advance - ${claimedSportDoc?.name || 'Ground'} · ${claimedGround.name}`,
   });
 
-  res.json({ message: 'Advance payment successful ✅', booking: sanitizeBookingForPlayer(booking), payment: sanitizePaymentForPlayer(payment) });
+  res.json({ message: 'Advance payment successful ✅', booking: sanitizeBookingForPlayer(booking), payment: sanitizePaymentForPlayer(payment), earned: earned ? { fitcoin: earned.fitcoin, fitPoints: earned.fitPoints } : null });
 });
 
 const createFinalOrder = asyncHandler(async (req, res) => {
@@ -312,14 +312,14 @@ const verifyFinalPayment = asyncHandler(async (req, res) => {
   await payment.save();
 
   // The remaining 70% is also real money spent — it earns the same rate.
-  await awardForPayment({
+  const earned = await awardForPayment({
     userId: booking.player,
     amountPaid: booking.remainingPrice,
     bookingId: booking._id,
     note: 'Final payment — booking completed',
   });
 
-  res.json({ message: 'Final payment successful ✅ Booking completed!', booking, payment });
+  res.json({ message: 'Final payment successful ✅ Booking completed!', booking, payment, earned: earned ? { fitcoin: earned.fitcoin, fitPoints: earned.fitPoints } : null });
 });
 
 const cancelAndRefund = asyncHandler(async (req, res) => {

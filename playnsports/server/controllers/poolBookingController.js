@@ -361,9 +361,9 @@ const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentI
 
   // Pool bookings are paid in full up front, so the whole amount earns.
   // Dummy-pay verifies (dev/test) move no money — they must not mint coins.
-  if (!dummy) {
-    await awardForPayment({ userId: req.user._id, amountPaid: ctx.priceInfo.totalAmount, bookingId: booking._id, note: `Pool booking — ${ground.name}` });
-  }
+  const earned = !dummy
+    ? await awardForPayment({ userId: req.user._id, amountPaid: ctx.priceInfo.totalAmount, bookingId: booking._id, note: `Pool booking — ${ground.name}` })
+    : null;
 
   if (dummy) console.log(`[dummy-pay] ${ticketId} ${ground.name} ${ctx.date} ${ctx.startTime} x${ctx.partySize} ₹${ctx.priceInfo.totalAmount} — NO MONEY MOVED`);
 
@@ -374,6 +374,7 @@ const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentI
     booking: sanitizeBookingForPlayer(booking),
     ticketId,
     ...(dummy ? { dummy: true } : {}),
+    earned: earned ? { fitcoin: earned.fitcoin, fitPoints: earned.fitPoints } : null,
   });
 };
 

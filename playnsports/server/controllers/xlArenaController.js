@@ -382,7 +382,7 @@ const verifyArenaPayment = asyncHandler(async (req, res) => {
 
   // Only the money that actually moved earns coins — a token booking
   // credits ₹500 of coins now and the rest when the balance is paid.
-  await awardForPayment({
+  const earned = await awardForPayment({
     userId: req.user._id,
     amountPaid: ctx.payable,
     bookingId: bookings[0]._id,
@@ -395,6 +395,9 @@ const verifyArenaPayment = asyncHandler(async (req, res) => {
     total: ctx.total,
     paid: ctx.payable,
     remaining: ctx.remaining,
+    // Shown in the success screen ("+500 Fitcoin earned") — the moment the
+    // economy becomes real to the player.
+    earned: earned ? { fitcoin: earned.fitcoin, fitPoints: earned.fitPoints } : null,
   });
 });
 

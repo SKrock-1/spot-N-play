@@ -5,6 +5,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { useEffect, useState } from 'react';
 import API from '../api/axios';
 import ProfileDropdown from './ProfileDropdown';
+import FitcoinPill from './FitcoinPill';
 import SpotNPlayLogo from './SpotNPlayLogo';
 
 const Navbar = () => {
@@ -97,9 +98,6 @@ const Navbar = () => {
                 <NavLink to="/map">Map</NavLink>
                 <NavLink to="/venues">Venues</NavLink>
                 <NavLink to="/groups">Groups</NavLink>
-                <NavLink to="/mates">Mates</NavLink>
-                <NavLink to="/wallet">🎁 Earn</NavLink>
-                <NavLink to="/leaderboard">🏆 Ranks</NavLink>
                 <NavLink to="/coaches">Coaches</NavLink>
                 <NavLink to="/chat">Chat</NavLink>
                 <NavLink to="/events">Events</NavLink>
@@ -143,6 +141,9 @@ const Navbar = () => {
               </div>
             )}
 
+            {/* Fitcoin balance — the one economy entry point in the nav */}
+            {user && <FitcoinPill />}
+
             {/* Profile / Auth */}
             {user ? (
               <ProfileDropdown />
@@ -160,6 +161,7 @@ const Navbar = () => {
 
           {/* ── Profile + Hamburger (mobile) ── */}
           <div className="md:hidden flex items-center gap-2">
+            {user && <FitcoinPill />}
             {user && <ProfileDropdown compact />}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -188,9 +190,6 @@ const Navbar = () => {
                   <Link to="/map" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>🗺️</span> Map</Link>
                   <Link to="/venues" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>🏢</span> Venues</Link>
                   <Link to="/groups" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>👥</span> Groups</Link>
-<Link to="/mates" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>🤝</span> Mates</Link>
-<Link to="/wallet" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>🎁</span> Invite &amp; Earn</Link>
-<Link to="/leaderboard" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>🏆</span> Leaderboard</Link>
                   <Link to="/coaches" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>🏋️</span> Coaches</Link>
                   <Link to="/chat" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>💬</span> Chat</Link>
                   <Link to="/events" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all"><span>📅</span> Events</Link>

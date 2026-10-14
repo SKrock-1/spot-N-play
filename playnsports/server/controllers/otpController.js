@@ -1,7 +1,9 @@
 import asyncHandler from 'express-async-handler';
 import OTP from '../models/OTP.js';
 import User from '../models/User.js';
+import FitTransaction from '../models/FitTransaction.js';
 import generateToken from '../utils/generateToken.js';
+import { ensureReferralCode, creditUser, INVITE_SIGNUP_FITCOIN } from '../services/fitService.js';
 import sendOTPEmail from '../utils/sendEmail.js';
 import sendOTPSms from '../utils/sendSMS.js';
 
@@ -71,6 +73,33 @@ const verifyOTP = asyncHandler(async (req, res) => {
       phone: phone || '',
       isEmailVerified: true,
     });
+    // Invite & Earn also works through the OTP signup path — same welcome
+    // bonus + inviter linkage as the password path (see authController).
+    const ref = String(req.body.referralCode || '').trim().toUpperCase();
+    if (ref) {
+      const inviter = await User.findOne({ referralCode: ref }).select('_id name');
+      if (inviter && String(inviter._id) !== String(user._id)) {
+        user.referredBy = inviter._id;
+        await user.save();
+        await creditUser({
+          userId: user._id,
+          type: 'earn_welcome',
+          fitcoin: INVITE_SIGNUP_FITCOIN,
+          fitPoints: INVITE_SIGNUP_FITCOIN,
+          relatedUser: inviter._id,
+          note: 'Welcome bonus for using an invite code',
+        });
+        await FitTransaction.create({
+          user: inviter._id,
+          type: 'earn_invite_signup',
+          fitcoin: 0,
+          fitPoints: 0,
+          relatedUser: user._id,
+          note: `${user.name} joined with your code`,
+        });
+      }
+    }
+    await ensureReferralCode(user);
   } else if (!user.isEmailVerified) {
     user.isEmailVerified = true;
     await user.save();

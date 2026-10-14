@@ -29,6 +29,31 @@ const PlayerDashboard = () => {
     bio: '',
   });
   const [poolQrMap, setPoolQrMap] = useState({});
+  // Rewards strip: wallet + rank + mates at a glance (deep-links included).
+  const [rewards, setRewards] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const [w, lb, m] = await Promise.all([
+          API.get('/users/fit/wallet').catch(() => ({ data: null })),
+          API.get('/leaderboard?range=all').catch(() => ({ data: null })),
+          API.get('/mates').catch(() => ({ data: null })),
+        ]);
+        if (!live) return;
+        setRewards({
+          fitcoin: w.data?.fitcoin || 0,
+          fitPoints: w.data?.fitPoints || 0,
+          referralCode: w.data?.referralCode || '',
+          rank: lb.data?.me?.rank ?? null,
+          mates: (m.data?.mates || []).length,
+          matesPending: (m.data?.incoming || []).length,
+        });
+      } catch { /* rewards strip stays hidden on failure */ }
+    })();
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -491,6 +516,50 @@ const PlayerDashboard = () => {
             </div>
           ))}
         </div>
+
+        {/* Rewards strip — Fitcoin, Fit Points, rank, mates, invite */}
+        {rewards && (
+          <div className="animate-fadeUp-2 mb-8 rounded-3xl border border-yellow-400/20 bg-gradient-to-r from-yellow-400/10 via-transparent to-green-400/5 p-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Link to="/wallet" className="flex items-center gap-3 group">
+                <span className="text-2xl">🪙</span>
+                <span>
+                  <span className="block font-bebas text-2xl text-yellow-500 leading-none">{Number(rewards.fitcoin).toLocaleString('en-IN')}</span>
+                  <span className="text-[11px] text-gray-500 uppercase tracking-wider group-hover:text-yellow-500">Fitcoin · Wallet →</span>
+                </span>
+              </Link>
+              <Link to="/leaderboard" className="flex items-center gap-3 group">
+                <span className="text-2xl">⚡</span>
+                <span>
+                  <span className="block font-bebas text-2xl text-green-400 leading-none">{Number(rewards.fitPoints).toLocaleString('en-IN')}</span>
+                  <span className="text-[11px] text-gray-500 uppercase tracking-wider group-hover:text-green-400">Fit Points{rewards.rank ? ` · Rank #${rewards.rank}` : ''} →</span>
+                </span>
+              </Link>
+              <Link to="/mates" className="flex items-center gap-3 group">
+                <span className="text-2xl">🤝</span>
+                <span>
+                  <span className="block font-bebas text-2xl leading-none">{rewards.mates}{rewards.matesPending > 0 ? <span className="text-green-400 text-lg"> +{rewards.matesPending}</span> : ''}</span>
+                  <span className="text-[11px] text-gray-500 uppercase tracking-wider group-hover:text-green-400">Mates{rewards.matesPending > 0 ? ' · requests!' : ''} →</span>
+                </span>
+              </Link>
+              <button
+                onClick={() => {
+                  const code = rewards.referralCode || '';
+                  const text = `Join me on PLAY N SPORTS! Use my invite code ${code} and get 20 Fitcoin on signup.`;
+                  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showMessage('Invite text copied — share it anywhere 🎁')).catch(() => showMessage(`Your code: ${code}`, 'success'));
+                  else showMessage(`Your code: ${code}`, 'success');
+                }}
+                className="flex items-center gap-3 text-left group"
+              >
+                <span className="text-2xl">🎁</span>
+                <span>
+                  <span className="block font-mono font-bold text-sm tracking-widest">{rewards.referralCode || '···'}</span>
+                  <span className="text-[11px] text-gray-500 uppercase tracking-wider group-hover:text-yellow-500">Invite code · tap to copy →</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Find Players CTA */}
         <div className="animate-fadeUp-2 mb-8 rounded-3xl border border-green-400/20 bg-gradient-to-r from-green-400/10 via-green-400/5 to-transparent p-5 flex items-center justify-between flex-wrap gap-4">
