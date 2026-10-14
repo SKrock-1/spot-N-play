@@ -2,6 +2,7 @@ import { useState } from 'react';
 import API from '../../api/axios';
 import { ESPORTS_FORMATS, ESPORTS_GAMES, ESPORTS_PLATFORMS, FIELD_SPORTS, sportLabel } from './eventConstants.js';
 import SubEventFields, { emptySubEvent, serializeSubEvents } from './SubEventFields.jsx';
+import SearchableSportSelect from '../SearchableSportSelect';
 
 const EditEventModal = ({ event, onClose, onUpdated, flash }) => {
   const initialHasSubEvents = event.subEvents?.length > 0;
@@ -214,11 +215,7 @@ const EditEventModal = ({ event, onClose, onUpdated, flash }) => {
           ) : (
             <div>
               <label className="g-label">Sport *</label>
-              <select name="sport" value={form.sport} onChange={handleChange} className="g-input">
-                {FIELD_SPORTS.map((s) => (
-                  <option key={s} value={s}>{sportLabel(s)}</option>
-                ))}
-              </select>
+              <SearchableSportSelect value={form.sport} onChange={s => handleChange({ target: { name: 'sport', value: s } })} includeAll={false} placeholder="Search sports" />
             </div>
           )}
 

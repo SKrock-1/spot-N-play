@@ -15,36 +15,41 @@ export const todayStr = () => new Date().toISOString().split('T')[0];
 // so two simultaneous requests for the last spot can never both win — one
 // findOneAndUpdate call matches, the other gets null back.
 export async function claimSlotCapacity({ groundId, slotId, userId, partySize = 1 }) {
-  const ground = await Ground.findOneAndUpdate(
-    {
-      _id: groundId,
-      slots: {
-        $elemMatch: {
-          _id: slotId,
-          date: { $gte: todayStr() },
-          $expr: { $lte: [{ $add: ['$bookedCount', partySize] }, '$capacity'] },
-        },
-      },
-    },
-    {
-      $inc: { 'slots.$.bookedCount': partySize },
-      $push: { 'slots.$.bookedBy': { $each: Array(partySize).fill(userId) } },
-    },
-    { new: true }
-  );
+  // Optimistic-concurrency claim: read the slot, then update ONLY if
+  // bookedCount is still exactly what we saw (compare-and-swap). A racing
+  // request for the last spot changes bookedCount first, so exactly one of
+  // the two updates matches — the loser re-reads, sees "full", gets null.
+  // (The previous $expr-inside-$elemMatch version throws "$expr can only be
+  // applied to the top-level document" on current MongoDB.)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ground = await Ground.findById(groundId);
+    if (!ground) return null;
+    const slot = ground.slots.id(slotId);
+    if (!slot) return null;
+    if (slot.date < todayStr()) return null;
+    if (slot.bookedCount + partySize > slot.capacity) return null;
 
-  if (!ground) return null;
+    const res = await Ground.updateOne(
+      { _id: groundId, 'slots._id': slot._id, 'slots.bookedCount': slot.bookedCount },
+      {
+        $inc: { 'slots.$.bookedCount': partySize },
+        $push: { 'slots.$.bookedBy': { $each: Array(partySize).fill(userId) } },
+      }
+    );
+    if (res.modifiedCount !== 1) continue; // lost the race — re-read and retry
 
-  const slot = ground.slots.id(slotId);
-  // Keep the legacy boolean in sync for any older frontend code that still
-  // reads slot.isBooked directly instead of comparing bookedCount/capacity.
-  const shouldBeBooked = slot.bookedCount >= slot.capacity;
-  if (slot.isBooked !== shouldBeBooked) {
-    slot.isBooked = shouldBeBooked;
-    await ground.save();
+    const fresh = await Ground.findById(groundId);
+    const freshSlot = fresh.slots.id(slotId);
+    // Keep the legacy boolean in sync for any older frontend code that still
+    // reads slot.isBooked directly instead of comparing bookedCount/capacity.
+    const shouldBeBooked = freshSlot.bookedCount >= freshSlot.capacity;
+    if (freshSlot.isBooked !== shouldBeBooked) {
+      freshSlot.isBooked = shouldBeBooked;
+      await fresh.save();
+    }
+    return { ground: fresh, slot: freshSlot };
   }
-
-  return { ground, slot };
+  return null;
 }
 
 // Releases capacity back (cancellation). Not required to be perfectly

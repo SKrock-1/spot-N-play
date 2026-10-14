@@ -9,6 +9,7 @@ import MyEventsList from '../components/events/MyEventsList.jsx';
 import { EVENT_STYLES } from '../components/events/eventStyles.js';
 import { ESPORTS_GAMES, ESPORTS_PLATFORMS, EVENT_CATEGORIES, FIELD_SPORTS, sportLabel } from '../components/events/eventConstants.js';
 import { dataStore } from '../utils/dataStore';
+import SearchableSportSelect from '../components/SearchableSportSelect';
 
 const EventsPage = () => {
   const navigate = useNavigate();
@@ -177,10 +178,7 @@ const EventsPage = () => {
                   {EVENT_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
                 </select>
                 {categoryFilter !== 'esports' && (
-                <select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)} className="g-input" style={{ width: 'auto', minWidth: 150 }}>
-                  <option value="">All Sports</option>
-                  {FIELD_SPORTS.map((s) => <option key={s} value={s}>{sportLabel(s)}</option>)}
-                </select>
+                      <SearchableSportSelect value={sportFilter} onChange={setSportFilter} includeAll={true} compactPills={false} placeholder="Search sports" />
                 )}
                 {categoryFilter === 'esports' && (
                   <>

@@ -6,9 +6,16 @@ import { getOrCreateConfig } from '../utils/poolBookingEngine.js';
 // route only checks role (pool_owner or admin), and this is the check that
 // decides whether *this particular* venue is theirs to manage. An admin
 // always passes; a pool_owner only passes for venues they own.
+// XL Arena is a turf ground with its own arena booking flow — the pool
+// engine stays strictly for venueType === 'pool'.
+const isPoolVenue = (ground) => {
+  if (!ground) return false;
+  return ground.venueType === 'pool';
+};
+
 const loadPoolGround = async (groundId, user) => {
   const ground = await Ground.findById(groundId);
-  if (!ground || ground.venueType !== 'pool') {
+  if (!ground || !isPoolVenue(ground)) {
     return { error: { status: 404, message: 'Pool venue not found' } };
   }
   const isOwner = String(ground.owner) === String(user._id);
