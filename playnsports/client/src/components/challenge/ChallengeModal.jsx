@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import API from '../../api/axios';
+import SearchableSportSelect from '../SearchableSportSelect';
 
 const SPORTS = [
   { value: 'football', label: '⚽ Football' },
@@ -78,9 +79,7 @@ const ChallengeModal = ({ opponent, onClose, onChallenged }) => {
         <div className="ch-flex ch-flex-col ch-gap-3">
           <label className="ch-block">
             <span className="ch-text-[10px] ch-uppercase ch-tracking-widest" style={{ color: '#9ca3af' }}>Sport</span>
-            <select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className="ch-input">
-              {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <SearchableSportSelect value={form.sport} onChange={s => setForm({ ...form, sport: s })} includeAll={false} placeholder="Search sports" className="ch-mt-1" />
           </label>
 
           <div className="ch-grid ch-grid-cols-2 ch-gap-3">

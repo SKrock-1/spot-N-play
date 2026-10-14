@@ -50,6 +50,7 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    mutedConversations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Conversation' }],
 
     // ── extended profile fields (all roles) ──
     gender: { type: String, enum: ['male', 'female', 'other', ''], default: '' },
@@ -69,6 +70,25 @@ const userSchema = new mongoose.Schema(
     // ── swimming pool bookings ──
     medicalCertificateUrl: { type: String, default: '' },
     poolRegistrations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Ground' }],
+
+    // ── Fit economy ──
+    // fitcoin = wallet currency, 1 unit of currency paid = 1 fitcoin (INR
+    // app today, so ₹1 spent = 1 FC). Spendable later (redemptions).
+    // fitPoints = lifetime score, never spendable — drives the leaderboard.
+    // Both start at 0 and only ever go up on earn (no debits yet).
+    fitcoin: { type: Number, default: 0, min: 0 },
+    fitPoints: { type: Number, default: 0, min: 0 },
+    totalEarnedFitcoin: { type: Number, default: 0, min: 0 },
+    totalEarnedFitPoints: { type: Number, default: 0, min: 0 },
+    // Invite & Earn: my own share code, who invited me, and whether that
+    // inviter has already been paid their 100 FC first-booking bonus
+    // (one reward per invited friend, enforced server-side).
+    referralCode: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    referralRewardGiven: { type: Boolean, default: false },
+
+    // ── Mates (accepted friend requests) ──
+    mates: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   },
   { timestamps: true }
 );

@@ -4,6 +4,7 @@ import API from '../api/axios';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { dataStore } from '../utils/dataStore';
+import SearchableSportSelect from '../components/SearchableSportSelect';
 
 const SPORTS = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football'];
 const LEVELS = ['beginner', 'intermediate', 'advanced', 'professional'];
@@ -275,10 +276,7 @@ const CoachDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="label">Sport *</label>
-                <select name="sport" value={form.sport} onChange={handleChange} required className="input-field">
-                  <option value="">Select sport</option>
-                  {SPORTS.map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                </select>
+                <SearchableSportSelect value={form.sport} onChange={s => setForm(p => ({ ...p, sport: s }))} includeAll={false} placeholder="Search sports" />
               </div>
               <div>
                 <label className="label">Years of Experience *</label>

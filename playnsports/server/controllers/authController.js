@@ -1,9 +1,11 @@
 import asyncHandler from 'express-async-handler';
 import User from '../models/User.js';
 import OTP from '../models/OTP.js';
+import FitTransaction from '../models/FitTransaction.js';
 import generateToken from '../utils/generateToken.js';
 import { updateStreak } from '../utils/updateStreak.js';
 import { sendPasswordResetEmail } from '../utils/sendEmail.js';
+import { ensureReferralCode, creditUser, INVITE_SIGNUP_FITCOIN } from '../services/fitService.js';
 
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body;
@@ -37,6 +39,35 @@ const registerUser = asyncHandler(async (req, res) => {
     authProvider: 'local',
   });
   await updateStreak(user);
+
+  // Invite & Earn: a ?ref= code at signup links the new player to their
+  // inviter and pays the welcome bonus immediately. The inviter's 100 FC is
+  // paid by fitService when this player makes their first paid booking.
+  const ref = String(req.body.referralCode || '').trim().toUpperCase();
+  if (ref && !user.referredBy) {
+    const inviter = await User.findOne({ referralCode: ref }).select('_id name');
+    if (inviter && String(inviter._id) !== String(user._id)) {
+      user.referredBy = inviter._id;
+      await user.save();
+      await creditUser({
+        userId: user._id,
+        type: 'earn_welcome',
+        fitcoin: INVITE_SIGNUP_FITCOIN,
+        fitPoints: INVITE_SIGNUP_FITCOIN,
+        relatedUser: inviter._id,
+        note: 'Welcome bonus for using an invite code',
+      });
+      await FitTransaction.create({
+        user: inviter._id,
+        type: 'earn_invite_signup',
+        fitcoin: 0,
+        fitPoints: 0,
+        relatedUser: user._id,
+        note: `${user.name} joined with your code`,
+      });
+    }
+  }
+  await ensureReferralCode(user);
 
   res.status(201).json({
     _id: user._id,

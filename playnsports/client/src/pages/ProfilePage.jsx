@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import API from '../api/axios';
 import Navbar from '../components/Navbar';
 import StreakCalendar from "../components/StreakCalendar";
+import SearchableSportSelect from '../components/SearchableSportSelect';
 import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
@@ -1382,9 +1383,7 @@ const ProfilePage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
                       <div className="field-group">
                         <label className="field-label">Sport</label>
-                        <select value={addSportForm.name} onChange={e => setAddSportForm(p => ({ ...p, name: e.target.value }))} className="input-field" style={{ padding: '8px 12px', fontSize: '13px' }}>
-                          {SPORTS.map(sp => <option key={sp.value} value={sp.value}>{sp.label}</option>)}
-                        </select>
+                        <SearchableSportSelect value={addSportForm.name} onChange={s => setAddSportForm(p => ({ ...p, name: s }))} includeAll={false} placeholder="Search sports" />
                       </div>
                       <div className="field-group">
                         <label className="field-label">Level</label>
