@@ -11,8 +11,6 @@ import { generateTicketId } from '../utils/ticket.js';
 import { sendPoolBookingEmail } from '../utils/sendEmail.js';
 import { notifySlotBooked, notifyPoolBookingConfirmed } from '../services/notificationService.js';
 import { signPoolQr, verifyPoolQr } from '../utils/poolQr.js';
-import { awardForPayment } from '../services/fitService.js';
-import { assertOrderMatches } from '../utils/orderGuard.js';
 import {
   todayStr, isWithinBookingWindow, MAX_ADVANCE_DAYS, MAX_DAILY_HEADCOUNT,
   getOrCreateConfig, effectiveBlocksForDate, findEffectiveBlock, claimPoolSlotCapacity, releasePoolSlotCapacity,
@@ -21,17 +19,9 @@ import { getIO } from '../socket/io.js';
 
 const clampParty = (n) => Math.max(1, Math.min(Number(n) || 1, MAX_DAILY_HEADCOUNT));
 
-// XL Arena is a turf ground, not a pool — it has its own arena booking
-// flow (XlArenaBookingPanel + /api/xl membership) built on Ground.slots,
-// so the pool engine stays strictly for venueType === 'pool'.
-const isPoolVenue = (ground) => {
-  if (!ground) return false;
-  return ground.venueType === 'pool';
-};
-
 const loadLiveBookablePool = async (groundId) => {
   const ground = await Ground.findById(groundId);
-  if (!ground || !isPoolVenue(ground)) return { error: { status: 404, message: 'Pool venue not found' } };
+  if (!ground || ground.venueType !== 'pool') return { error: { status: 404, message: 'Pool venue not found' } };
   if (ground.approvalStatus !== 'approved' || ground.venueMode !== 'live') {
     return { error: { status: 403, message: 'This venue is still in its trial phase — booking opens once it goes live' } };
   }
@@ -198,8 +188,6 @@ const createPoolOrder = asyncHandler(async (req, res) => {
     notes: {
       groundId: ground._id.toString(), poolId: ctx.pool._id.toString(),
       date: ctx.date, startTime: ctx.startTime, playerId: req.user._id.toString(), type: 'pool_full',
-      partySize: String(ctx.partySize),
-      amount: String(ctx.priceInfo.totalAmount),
     },
   });
 
@@ -226,54 +214,21 @@ const verifyPoolPayment = asyncHandler(async (req, res) => {
   const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body).digest('hex');
   if (expectedSignature !== razorpaySignature) { res.status(400); throw new Error('Payment verification failed'); }
 
-  const razorpay = getRazorpay();
-  const { ground, error } = await loadLiveBookablePool(req.params.groundId);
-  if (error) { res.status(error.status); throw new Error(error.message); }
-
-  // Resolve the intended booking first so we know the amount and identity
-  // fields the order is supposed to be bound to.
-  let ctx;
-  try {
-    ctx = await resolveBookingContext(ground, req);
-  } catch (err) {
-    res.status(err.status || 400); throw err;
-  }
-  try {
-    await assertOrderMatches({
-      razorpay,
-      orderId: razorpayOrderId,
-      expectedAmount: ctx.priceInfo.totalAmount,
-      playerId: req.user._id,
-      kind: 'pool_full',
-      match: {
-        groundId: String(ground._id),
-        poolId: String(ctx.pool._id),
-        date: ctx.date,
-        startTime: ctx.startTime,
-        partySize: String(ctx.partySize),
-      },
-    });
-  } catch (err) {
-    res.status(err.status || 400); throw err;
-  }
-
-  await finalizePoolBooking(req, res, { razorpayOrderId, razorpayPaymentId, dummy: false, ctx });
+  await finalizePoolBooking(req, res, { razorpayOrderId, razorpayPaymentId, dummy: false });
 });
 
 // Shared tail of real + dummy verification: re-resolves the booking context
 // server-side, atomically claims capacity, creates the Booking + Payment,
 // and fires email/notifications. The ONLY difference between callers is how
 // payment authenticity was established — everything downstream is identical.
-const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentId, dummy, ctx: preCtx }) => {
+const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentId, dummy }) => {
   const { medicalCertificateUrl } = req.body;
   const { ground, error } = await loadLiveBookablePool(req.params.groundId);
   if (error) { res.status(error.status); throw new Error(error.message); }
 
   let ctx;
   try {
-    // A verified payment already resolved the context — reuse it, don't
-    // re-derive (and don't let a stale re-derive refund-warn the user).
-    ctx = preCtx || await resolveBookingContext(ground, req);
+    ctx = await resolveBookingContext(ground, req);
   } catch (err) {
     // Payment already succeeded on Razorpay's side but something about the
     // booking is no longer valid (slot removed, daily cap hit meanwhile,
@@ -358,12 +313,6 @@ const finalizePoolBooking = async (req, res, { razorpayOrderId, razorpayPaymentI
   sendPoolBookingEmail(req.user, ground, booking).catch(() => {});
   notifyPoolBookingConfirmed({ groundId: ground._id, groundName: ground.name, userId: req.user._id, ticketId, date: ctx.date, startTime: ctx.startTime });
   notifySlotBooked({ ownerId: ground.owner, actorId: req.user._id, groundId: ground._id, groundName: ground.name, date: ctx.date, startTime: ctx.startTime, endTime: ctx.block.endTime });
-
-  // Pool bookings are paid in full up front, so the whole amount earns.
-  // Dummy-pay verifies (dev/test) move no money — they must not mint coins.
-  if (!dummy) {
-    await awardForPayment({ userId: req.user._id, amountPaid: ctx.priceInfo.totalAmount, bookingId: booking._id, note: `Pool booking — ${ground.name}` });
-  }
 
   if (dummy) console.log(`[dummy-pay] ${ticketId} ${ground.name} ${ctx.date} ${ctx.startTime} x${ctx.partySize} ₹${ctx.priceInfo.totalAmount} — NO MONEY MOVED`);
 

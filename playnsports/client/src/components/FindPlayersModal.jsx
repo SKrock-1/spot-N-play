@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
 import { dataStore } from '../utils/dataStore';
-import SearchableSportSelect from './SearchableSportSelect';
+
+const SPORTS = ['football', 'cricket', 'basketball', 'tennis', 'badminton', 'volleyball', 'boxing', 'hockey', 'kabaddi', 'kho kho', 'pickleball', 'table tennis', 'squash', 'handball', 'futsal', 'rugby', 'athletics', 'wrestling', 'weightlifting', 'yoga', 'skating', 'chess', 'carrom', 'archery', 'shooting', 'cycling', 'box cricket', 'box football'];
 const SKILLS = ['any', 'beginner', 'intermediate', 'advanced', 'professional'];
 const WHEN_OPTIONS = [
   { label: 'Right Now', minutesFromNow: 0 },
@@ -110,11 +111,11 @@ const FindPlayersModal = ({ onClose, onCreated }) => {
           <div className="mb-4 text-xs bg-red-400/10 border border-red-400/20 text-red-500 dark:text-red-400 rounded-xl px-3 py-2">{error}</div>
         )}
 
-        {/* Sport — searchable */}
+        {/* Sport */}
         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Sport</label>
-        <div className="mb-4">
-          <SearchableSportSelect value={sport} onChange={setSport} placeholder="🔍 Search sport… e.g. pickleball" includeAll={false} />
-        </div>
+        <select value={sport} onChange={(e) => setSport(e.target.value)} className="w-full mb-4 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white capitalize outline-none focus:border-green-400/50">
+          {SPORTS.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
+        </select>
 
         {/* Location */}
         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Location</label>

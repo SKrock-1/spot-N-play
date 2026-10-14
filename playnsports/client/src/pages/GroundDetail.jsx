@@ -5,12 +5,6 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 import UserChip from '../components/UserChip';
 import PoolBookingPanel from '../components/PoolBookingPanel';
-import XlArenaBookingPanel from '../components/XlArenaBookingPanel';
-
-// XL Arena is a turf arena, not a pool — it gets its own ground-style
-// arena flow (exclusive turfs, hourly slots, 30% advance) instead of the
-// pool flow (shared water, full payment, health certs).
-const isXlArena = (ground) => ground?.name?.toLowerCase().includes('xl arena');
 
 const GroundDetail = () => {
   const { id } = useParams();
@@ -657,14 +651,6 @@ const GroundDetail = () => {
                   ⚙️ Manage bookings & gate scanner →
                 </button>
               )}
-              {isXlArena(ground) && (user?.role === 'admin' || String(ground.owner?._id || ground.owner || '') === String(user?._id || '')) && user && (
-                <button
-                  onClick={() => navigate(user.role === 'admin' ? '/admin' : '/owner/dashboard')}
-                  className="mt-3 inline-flex items-center gap-2 bg-green-400 hover:bg-green-300 text-black text-xs font-bold px-4 py-2 rounded-xl transition-colors"
-                >
-                  ⚙️ Manage turfs & slots →
-                </button>
-              )}
               {/* {ground.owner?._id && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
                   <span>Hosted by</span>
@@ -707,10 +693,6 @@ const GroundDetail = () => {
         {ground.venueType === 'pool' ? (
           <div className="lg:col-span-3">
             <PoolBookingPanel ground={ground} user={user} showMessage={showMessage} />
-          </div>
-        ) : isXlArena(ground) ? (
-          <div className="lg:col-span-3">
-            <XlArenaBookingPanel ground={ground} user={user} showMessage={showMessage} onBooked={() => { fetchGround(); fetchMyPayments(); }} />
           </div>
         ) : (
         <>

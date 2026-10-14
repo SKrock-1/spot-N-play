@@ -94,10 +94,6 @@ function App() {
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         {/* Public user profiles */}
         <Route path="/users/:id/profile" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
-
-        <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
-        <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
-        <Route path="/mates" element={<ProtectedRoute><MatesPage /></ProtectedRoute>} />
         {/* Public info / legal page */}
         <Route path="/info" element={<InfoPage />} />
       </Routes>
