@@ -35,6 +35,9 @@ import EventDetailPage from './pages/EventDetailPage';
 import SubEventDetailPage from './pages/SubEventDetailPage';
 import NotificationsPage from './pages/NotificationsPage';
 import UserProfilePage from './pages/UserProfile/index';
+import WalletPage from './pages/WalletPage';
+import LeaderboardPage from './pages/LeaderboardPage';
+import MatesPage from './pages/MatesPage';
 import InfoPage from './pages/InfoPage';
 import WhatsAppCTA from './components/WhatsAppCTA';
 import {
