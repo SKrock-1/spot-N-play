@@ -65,22 +65,27 @@ export const awardForPayment = async ({ userId, amountPaid, bookingId = null, no
   });
 
   // If this player was invited, pay their inviter the one-time first-booking
-  // bonus. `referralRewardGiven` is the guard so it can only ever fire once
-  // per invited friend, no matter how many bookings they make.
-  const payer = await User.findById(userId).select('_id referredBy referralRewardGiven name').lean();
-  if (payer?.referredBy && !payer.referralRewardGiven) {
-    await User.updateOne(
-      { _id: payer._id, referralRewardGiven: false },
-      { $set: { referralRewardGiven: true } }
+  // bonus. The bonus is CLAIMED atomically first (conditional update on
+  // referralRewardGiven), so concurrent bookings for the same invited friend
+  // can never both win — and a crash between claim and credit loses at most
+  // this one bonus, it can never double-pay.
+  const payer = await User.findById(userId).select('_id referredBy name').lean();
+  if (payer?.referredBy) {
+    const claim = await User.findOneAndUpdate(
+      { _id: payer._id, referralRewardGiven: { $ne: true } },
+      { $set: { referralRewardGiven: true } },
+      { new: true }
     );
-    await creditUser({
-      userId: payer.referredBy,
-      type: 'earn_invite_booking',
-      fitcoin: INVITE_FIRSTBOOKING_FITCOIN,
-      fitPoints: INVITE_FIRSTBOOKING_FITCOIN,
-      relatedUser: payer._id,
-      note: 'Your invite made their first booking',
-    });
+    if (claim) {
+      await creditUser({
+        userId: payer.referredBy,
+        type: 'earn_invite_booking',
+        fitcoin: INVITE_FIRSTBOOKING_FITCOIN,
+        fitPoints: INVITE_FIRSTBOOKING_FITCOIN,
+        relatedUser: payer._id,
+        note: 'Your invite made their first booking',
+      });
+    }
   }
   return { fitcoin, fitPoints };
 };

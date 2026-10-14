@@ -57,7 +57,9 @@ const getLeaderboard = asyncHandler(async (req, res) => {
     .slice(0, 100)
     .map((r, i) => ({ ...r, rank: i + 1 }));
 
-  // My own row — always present, even when I'm not in the top 100.
+  // My own row — always present, and always with an EXACT rank, even when
+  // I'm outside the top 100 (pointsRows/matchMap cover every active player,
+  // so the rank is computed from the full set, not from the sliced list).
   let me = null;
   const myId = String(req.user._id);
   const mine = rows.find((r) => r._id === myId);
@@ -66,10 +68,10 @@ const getLeaderboard = asyncHandler(async (req, res) => {
   } else {
     const u = await User.findById(req.user._id).select('name avatar city fitPoints').lean();
     const myPoints = await FitTransaction.aggregate([
-      { $match: { ...WINDOWS[range](), user: req.user._id } },
+      { $match: { ...match, user: req.user._id } },
       { $group: { _id: null, fitPoints: { $sum: '$fitPoints' }, fitcoin: { $sum: '$fitcoin' } } },
     ]);
-    const myMatches = await Booking.countDocuments({ ...WINDOWS[range](), player: req.user._id, status: { $ne: 'cancelled' } });
+    const myMatches = await Booking.countDocuments({ ...match, player: req.user._id, status: { $ne: 'cancelled' } });
     me = {
       _id: myId,
       name: u?.name || 'You',
@@ -78,15 +80,16 @@ const getLeaderboard = asyncHandler(async (req, res) => {
       fitPoints: myPoints[0]?.fitPoints ?? (range === 'all' ? u?.fitPoints || 0 : 0),
       fitcoin: myPoints[0]?.fitcoin ?? 0,
       matches: myMatches,
-      rank: null,
     };
-    // If I do have points, my rank is "how many people are above me + 1".
-    if (me.fitPoints > 0 || me.matches > 0) {
-      const better = rows.length >= 100
-        ? null
-        : rows.filter((r) => r.fitPoints > me.fitPoints || (r.fitPoints === me.fitPoints && r.matches > me.matches)).length;
-      if (better !== null) me.rank = better + 1;
-    }
+  }
+  if (me.rank === undefined) me.rank = null;
+  if (me.rank === null) {
+    const better = pointsRows.filter((r) => {
+      const pts = r.fitPoints || 0;
+      if (pts !== me.fitPoints) return pts > me.fitPoints;
+      return (matchMap.get(String(r._id)) || 0) > me.matches;
+    }).length;
+    me.rank = better + 1;
   }
 
   res.json({ range, rows, me, total: rows.length });
