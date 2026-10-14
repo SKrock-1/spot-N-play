@@ -72,10 +72,16 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 const corsOrigin = (origin, callback) => {
   // Allow no-origin requests (mobile apps, Postman in dev) and whitelisted origins.
   if (!origin) return callback(null, true);
+  // In dev, both loopback spellings are the same machine — the client .env
+  // points at 127.0.0.1 while browsers/people often type localhost (or the
+  // reverse), and blocking either one bricks every API call on that host.
+  const isDevLoopback =
+    process.env.NODE_ENV !== 'production' &&
+    /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
   const allowed =
     ALLOWED_ORIGINS.includes(origin) ||
     origin.endsWith('.vercel.app') ||
-    (process.env.NODE_ENV !== 'production' && origin === 'http://localhost:5173');
+    isDevLoopback;
   if (allowed) {
     callback(null, true);
   } else {
